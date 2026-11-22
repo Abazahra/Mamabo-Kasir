@@ -23,11 +23,11 @@ alter table public.mambo_public_catalog_products enable row level security;
 drop policy if exists public_catalog_settings_read on public.mambo_public_catalog_settings;
 create policy public_catalog_settings_read on public.mambo_public_catalog_settings for select to anon,authenticated using (true);
 drop policy if exists public_catalog_settings_write_owner on public.mambo_public_catalog_settings;
-create policy public_catalog_settings_write_owner on public.mambo_public_catalog_settings for all to authenticated using (public.mambo_is_owner(store_id)) with check (public.mambo_is_owner(store_id));
+create policy public_catalog_settings_write_owner on public.mambo_public_catalog_settings for all to authenticated using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
 drop policy if exists public_catalog_products_read on public.mambo_public_catalog_products;
 create policy public_catalog_products_read on public.mambo_public_catalog_products for select to anon,authenticated using (true);
 drop policy if exists public_catalog_products_write_owner on public.mambo_public_catalog_products;
-create policy public_catalog_products_write_owner on public.mambo_public_catalog_products for all to authenticated using (public.mambo_is_owner(store_id)) with check (public.mambo_is_owner(store_id));
+create policy public_catalog_products_write_owner on public.mambo_public_catalog_products for all to authenticated using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values('mambo-product-images','mambo-product-images',true,2097152,array['image/jpeg','image/png','image/webp','image/gif'])
@@ -35,8 +35,8 @@ on conflict(id) do update set public=true,file_size_limit=2097152,allowed_mime_t
 drop policy if exists mambo_catalog_images_public_read on storage.objects;
 create policy mambo_catalog_images_public_read on storage.objects for select to anon,authenticated using (bucket_id='mambo-product-images');
 drop policy if exists mambo_catalog_images_owner_insert on storage.objects;
-create policy mambo_catalog_images_owner_insert on storage.objects for insert to authenticated with check (bucket_id='mambo-product-images' and public.mambo_is_owner((storage.foldername(name))[1]::uuid));
+create policy mambo_catalog_images_owner_insert on storage.objects for insert to authenticated with check (bucket_id='mambo-product-images' and public.mambo_has_role((storage.foldername(name))[1]::uuid,array['owner','supervisor']));
 drop policy if exists mambo_catalog_images_owner_update on storage.objects;
-create policy mambo_catalog_images_owner_update on storage.objects for update to authenticated using (bucket_id='mambo-product-images' and public.mambo_is_owner((storage.foldername(name))[1]::uuid)) with check (bucket_id='mambo-product-images' and public.mambo_is_owner((storage.foldername(name))[1]::uuid));
+create policy mambo_catalog_images_owner_update on storage.objects for update to authenticated using (bucket_id='mambo-product-images' and public.mambo_has_role((storage.foldername(name))[1]::uuid,array['owner','supervisor'])) with check (bucket_id='mambo-product-images' and public.mambo_has_role((storage.foldername(name))[1]::uuid,array['owner','supervisor']));
 drop policy if exists mambo_catalog_images_owner_delete on storage.objects;
-create policy mambo_catalog_images_owner_delete on storage.objects for delete to authenticated using (bucket_id='mambo-product-images' and public.mambo_is_owner((storage.foldername(name))[1]::uuid));
+create policy mambo_catalog_images_owner_delete on storage.objects for delete to authenticated using (bucket_id='mambo-product-images' and public.mambo_has_role((storage.foldername(name))[1]::uuid,array['owner','supervisor']));
