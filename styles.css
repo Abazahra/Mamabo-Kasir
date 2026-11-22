@@ -8,3 +8,19 @@
 @media (hover: hover) and (pointer: fine){.sidebar{position:fixed!important;inset:0 auto 0 0!important;width:245px!important;height:100vh!important;max-height:100vh!important;overflow-y:auto!important;overflow-x:hidden!important;transform:translateX(0)!important;z-index:10}.main{margin-left:245px!important;width:calc(100% - 245px)!important}#menuToggle{display:none!important}}
 
 .pos-product-photo{width:100%;height:112px;object-fit:cover;border-radius:8px;background:var(--line)}.pos-product-photo-placeholder{width:100%;height:112px;display:grid;place-items:center;border-radius:8px;background:var(--line);color:var(--muted);font-size:11px;text-align:center}
+
+
+/* Mobile POS: keep the payment action reachable above the browser/system bars */
+@media (max-width: 680px){
+  .pos-right{padding-bottom:82px!important}
+  .pos-right #pay{
+    position:fixed!important;
+    left:13px!important;
+    right:13px!important;
+    bottom:calc(env(safe-area-inset-bottom, 0px) + 12px)!important;
+    width:calc(100% - 26px)!important;
+    margin:0!important;
+    z-index:30!important;
+    box-shadow:0 6px 22px #17203335!important;
+  }
+}
