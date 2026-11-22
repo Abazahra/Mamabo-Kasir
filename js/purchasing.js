@@ -45,14 +45,13 @@ export async function mountPurchasing(root,user){
  });
  const update=()=>{$('#lines').innerHTML=table(lines,['Produk','Qty','Satuan','Konversi','Harga/Satuan','Jumlah',''],x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.qty+'</td><td>'+esc(x.unitName)+'</td><td>'+x.factor+'</td><td>'+rp(x.unitPrice)+'</td><td>'+rp(x.qty*x.unitPrice)+'</td><td><button class="danger" data-remove-line="'+x.productId+'">×</button></td></tr>');$('#purchaseTotal').textContent=rp(lines.reduce((a,x)=>a+x.qty*x.unitPrice,0));};
  const previousBaseCost=p=>{
-  if(Number(p?.lastPurchaseCost)>0)return Number(p.lastPurchaseCost);
-  const prior=purchases.slice().sort((a,b)=>String(b.date||b.createdAt||'').localeCompare(String(a.date||a.createdAt||''))).flatMap(x=>x.items||[]).find(x=>x.productId===p?.id&&Number(x.baseCost)>0);
-  return prior?Number(prior.baseCost):null;
+  const hpp=Number(p?.cost);
+  return Number.isFinite(hpp)&&hpp>0?hpp:null;
  };
  const refreshPreviousPrice=()=>{
   const p=products.find(x=>x.id===$('#product').value),factor=Number($('#unit').value)||1,base=previousBaseCost(p),box=$('#previousPurchasePrice'),compare=$('#purchasePriceCompare');
   if(!p){box.textContent='Pilih produk untuk melihat harga sebelumnya.';compare.textContent='';return;}
-  if(base===null){box.textContent='Belum ada riwayat harga beli untuk produk ini.';compare.textContent='';return;}
+  if(base===null){box.textContent='HPP produk belum tersedia. Periksa data HPP pada produk.';compare.textContent='';return;}
   const prior=base*factor,unitName=$('#unit').selectedOptions[0]?.text.split(' × ')[0]||p.baseUnit||'satuan';
   box.textContent=rp(prior)+' per '+unitName+' (harga terakhir tercatat)';
   const entered=Number($('#price').value);
