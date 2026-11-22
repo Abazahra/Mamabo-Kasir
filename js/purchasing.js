@@ -28,6 +28,7 @@ export async function mountPurchasing(root,user){
  '<div class="field"><label>Metode HPP</label><select id="costMode"><option value="wac">Rata-rata tertimbang</option><option value="last">Timpa dengan HPP terakhir</option></select></div></div>'+
  '<hr><div class="form-grid"><div class="field"><label>Produk</label><select id="product"><option value="">Pilih produk</option>'+products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.sku)+')</option>').join('')+'</select></div>'+field('qty','Jumlah Beli','1','number')+
  '<div class="field"><label>Satuan Beli</label><select id="unit"></select></div>'+field('price','Harga Beli per Satuan','0','number')+
+ '<div class="field wide"><label>Harga Beli Sebelumnya</label><div id="previousPurchasePrice" class="muted" style="padding:10px 12px;background:var(--surface-2, #f3f4f6);border-radius:8px">Pilih produk untuk melihat harga sebelumnya.</div><small id="purchasePriceCompare" class="muted"></small></div>'+
  '</div><button type="button" class="secondary" id="addLine">Tambah ke daftar</button><div id="lines" class="table-wrap" style="margin-top:12px"></div><div class="grand-total" id="purchaseTotal">Rp 0</div>';
  modal('Faktur Penerimaan Barang',body,async()=>{
  const supplier=suppliers.find(x=>x.id===$('#supplier').value),invoiceNo=$('#invoice').value.trim(),date=$('#date').value,ptype=$('#ptype').value,dueDate=$('#due').value,mode=$('#costMode').value;
@@ -43,8 +44,24 @@ export async function mountPurchasing(root,user){
  mountPurchasing(root,user);
  });
  const update=()=>{$('#lines').innerHTML=table(lines,['Produk','Qty','Satuan','Konversi','Harga/Satuan','Jumlah',''],x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.qty+'</td><td>'+esc(x.unitName)+'</td><td>'+x.factor+'</td><td>'+rp(x.unitPrice)+'</td><td>'+rp(x.qty*x.unitPrice)+'</td><td><button class="danger" data-remove-line="'+x.productId+'">×</button></td></tr>');$('#purchaseTotal').textContent=rp(lines.reduce((a,x)=>a+x.qty*x.unitPrice,0));};
- const refreshUnits=()=>{const p=products.find(x=>x.id===$('#product').value),units=p?.units?.length?p.units:[{name:p?.baseUnit||'Pcs',factor:1}];$('#unit').innerHTML=units.map(u=>'<option value="'+u.factor+'">'+esc(u.name)+' × '+u.factor+'</option>').join('');};
- $('#product').onchange=refreshUnits;$('#ptype').onchange=()=>{$('#due').disabled=$('#ptype').value!=='Tempo';};$('#due').disabled=true;
+ const previousBaseCost=p=>{
+  if(Number(p?.lastPurchaseCost)>0)return Number(p.lastPurchaseCost);
+  const prior=purchases.slice().sort((a,b)=>String(b.date||b.createdAt||'').localeCompare(String(a.date||a.createdAt||''))).flatMap(x=>x.items||[]).find(x=>x.productId===p?.id&&Number(x.baseCost)>0);
+  return prior?Number(prior.baseCost):null;
+ };
+ const refreshPreviousPrice=()=>{
+  const p=products.find(x=>x.id===$('#product').value),factor=Number($('#unit').value)||1,base=previousBaseCost(p),box=$('#previousPurchasePrice'),compare=$('#purchasePriceCompare');
+  if(!p){box.textContent='Pilih produk untuk melihat harga sebelumnya.';compare.textContent='';return;}
+  if(base===null){box.textContent='Belum ada riwayat harga beli untuk produk ini.';compare.textContent='';return;}
+  const prior=base*factor,unitName=$('#unit').selectedOptions[0]?.text.split(' × ')[0]||p.baseUnit||'satuan';
+  box.textContent=rp(prior)+' per '+unitName+' (harga terakhir tercatat)';
+  const entered=Number($('#price').value);
+  if($('#price').value===''||!Number.isFinite(entered)||entered<=0){compare.textContent='Masukkan harga beli baru untuk membandingkan.';return;}
+  const diff=entered-prior,pct=prior?Math.abs(diff)/prior*100:0;
+  compare.textContent=diff===0?'Harga sama dengan pembelian sebelumnya.':(diff>0?'Lebih mahal ':'Lebih murah ')+rp(Math.abs(diff))+' ('+pct.toFixed(1)+'%) dibanding harga sebelumnya.';
+ };
+ const refreshUnits=()=>{const p=products.find(x=>x.id===$('#product').value),units=p?.units?.length?p.units:[{name:p?.baseUnit||'Pcs',factor:1}];$('#unit').innerHTML=units.map(u=>'<option value="'+u.factor+'">'+esc(u.name)+' × '+u.factor+'</option>').join('');refreshPreviousPrice();};
+ $('#product').onchange=refreshUnits;$('#unit').onchange=refreshPreviousPrice;$('#price').oninput=refreshPreviousPrice;$('#ptype').onchange=()=>{$('#due').disabled=$('#ptype').value!=='Tempo';};$('#due').disabled=true;
  $('#addLine').onclick=()=>{const p=products.find(x=>x.id===$('#product').value),qty=Number($('#qty').value),factor=Number($('#unit').value),unitPrice=Number($('#price').value);if(!p||!(qty>0)||!(factor>0)||!(unitPrice>=0))return alert('Pilih produk dan isi jumlah serta harga yang valid.');if(lines.some(x=>x.productId===p.id))return alert('Produk sudah ada dalam daftar; hapus baris lama bila ingin mengganti.');lines.push({productId:p.id,sku:p.sku,name:p.name,qty,factor,unitName:$('#unit').selectedOptions[0].text.split(' × ')[0],baseQty:qty*factor,unitPrice,baseCost:unitPrice/factor});update();};
  $('#lines').onclick=e=>{const b=e.target.closest('[data-remove-line]');if(b){lines=lines.filter(x=>x.productId!==b.dataset.removeLine);update();}};
  }
