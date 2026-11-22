@@ -151,44 +151,44 @@ create or replace function public.mambo_has_role(target_store uuid, allowed text
 returns boolean language sql stable security definer set search_path=public
 as $ select exists(select 1 from public.mambo_store_members m where m.store_id=target_store and m.user_id=auth.uid() and m.app_role=any(allowed)) $;
 drop policy if exists products_member_all on public.mambo_products;
-create policy products_read_member on public.mambo_products for select using (public.mambo_is_member(store_id));
-create policy products_write_manager on public.mambo_products for insert with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy products_update_manager on public.mambo_products for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy products_delete_owner on public.mambo_products for delete using (public.mambo_is_owner(store_id));
+drop policy if exists products_read_member on public.mambo_products;\ncreate policy products_read_member on public.mambo_products for select using (public.mambo_is_member(store_id));
+drop policy if exists products_write_manager on public.mambo_products;\ncreate policy products_write_manager on public.mambo_products for insert with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists products_update_manager on public.mambo_products;\ncreate policy products_update_manager on public.mambo_products for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists products_delete_owner on public.mambo_products;\ncreate policy products_delete_owner on public.mambo_products for delete using (public.mambo_is_owner(store_id));
 drop policy if exists suppliers_member_all on public.mambo_suppliers;
-create policy suppliers_read_member on public.mambo_suppliers for select using (public.mambo_is_member(store_id));
-create policy suppliers_write_manager on public.mambo_suppliers for insert with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy suppliers_update_manager on public.mambo_suppliers for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy suppliers_delete_owner on public.mambo_suppliers for delete using (public.mambo_is_owner(store_id));
+drop policy if exists suppliers_read_member on public.mambo_suppliers;\ncreate policy suppliers_read_member on public.mambo_suppliers for select using (public.mambo_is_member(store_id));
+drop policy if exists suppliers_write_manager on public.mambo_suppliers;\ncreate policy suppliers_write_manager on public.mambo_suppliers for insert with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists suppliers_update_manager on public.mambo_suppliers;\ncreate policy suppliers_update_manager on public.mambo_suppliers for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists suppliers_delete_owner on public.mambo_suppliers;\ncreate policy suppliers_delete_owner on public.mambo_suppliers for delete using (public.mambo_is_owner(store_id));
 drop policy if exists stock_member_all on public.mambo_stock_movements;
-create policy stock_read_member on public.mambo_stock_movements for select using (public.mambo_is_member(store_id));
-create policy stock_insert_member on public.mambo_stock_movements for insert with check (public.mambo_is_member(store_id));
-create policy stock_update_manager on public.mambo_stock_movements for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy stock_delete_owner on public.mambo_stock_movements for delete using (public.mambo_is_owner(store_id));
+drop policy if exists stock_read_member on public.mambo_stock_movements;\ncreate policy stock_read_member on public.mambo_stock_movements for select using (public.mambo_is_member(store_id));
+drop policy if exists stock_insert_member on public.mambo_stock_movements;\ncreate policy stock_insert_member on public.mambo_stock_movements for insert with check (public.mambo_is_member(store_id));
+drop policy if exists stock_update_manager on public.mambo_stock_movements;\ncreate policy stock_update_manager on public.mambo_stock_movements for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists stock_delete_owner on public.mambo_stock_movements;\ncreate policy stock_delete_owner on public.mambo_stock_movements for delete using (public.mambo_is_owner(store_id));
 drop policy if exists transactions_member_all on public.mambo_transactions;
-create policy transactions_read_member on public.mambo_transactions for select using (public.mambo_is_member(store_id));
-create policy transactions_insert_member on public.mambo_transactions for insert with check (public.mambo_is_member(store_id));
-create policy transactions_update_manager on public.mambo_transactions for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
-create policy transactions_delete_owner on public.mambo_transactions for delete using (public.mambo_is_owner(store_id));
+drop policy if exists transactions_read_member on public.mambo_transactions;\ncreate policy transactions_read_member on public.mambo_transactions for select using (public.mambo_is_member(store_id));
+drop policy if exists transactions_insert_member on public.mambo_transactions;\ncreate policy transactions_insert_member on public.mambo_transactions for insert with check (public.mambo_is_member(store_id));
+drop policy if exists transactions_update_manager on public.mambo_transactions;\ncreate policy transactions_update_manager on public.mambo_transactions for update using (public.mambo_has_role(store_id,array['owner','supervisor'])) with check (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists transactions_delete_owner on public.mambo_transactions;\ncreate policy transactions_delete_owner on public.mambo_transactions for delete using (public.mambo_is_owner(store_id));
 drop policy if exists shifts_member_all on public.mambo_shifts;
-create policy shifts_read_member on public.mambo_shifts for select using (public.mambo_is_member(store_id));
-create policy shifts_insert_member on public.mambo_shifts for insert with check (public.mambo_is_member(store_id));
-create policy shifts_update_member on public.mambo_shifts for update using (public.mambo_is_member(store_id)) with check (public.mambo_is_member(store_id));
-create policy shifts_delete_owner on public.mambo_shifts for delete using (public.mambo_is_owner(store_id));
+drop policy if exists shifts_read_member on public.mambo_shifts;\ncreate policy shifts_read_member on public.mambo_shifts for select using (public.mambo_is_member(store_id));
+drop policy if exists shifts_insert_member on public.mambo_shifts;\ncreate policy shifts_insert_member on public.mambo_shifts for insert with check (public.mambo_is_member(store_id));
+drop policy if exists shifts_update_member on public.mambo_shifts;\ncreate policy shifts_update_member on public.mambo_shifts for update using (public.mambo_is_member(store_id)) with check (public.mambo_is_member(store_id));
+drop policy if exists shifts_delete_owner on public.mambo_shifts;\ncreate policy shifts_delete_owner on public.mambo_shifts for delete using (public.mambo_is_owner(store_id));
 drop policy if exists audit_member_read on public.mambo_audit_logs;
-create policy audit_read_manager on public.mambo_audit_logs for select using (public.mambo_has_role(store_id,array['owner','supervisor']));
+drop policy if exists audit_read_manager on public.mambo_audit_logs;\ncreate policy audit_read_manager on public.mambo_audit_logs for select using (public.mambo_has_role(store_id,array['owner','supervisor']));
 drop policy if exists audit_member_insert on public.mambo_audit_logs;
-create policy audit_insert_member on public.mambo_audit_logs for insert with check (public.mambo_is_member(store_id));
+drop policy if exists audit_insert_member on public.mambo_audit_logs;\ncreate policy audit_insert_member on public.mambo_audit_logs for insert with check (public.mambo_is_member(store_id));
 drop policy if exists sync_records_member_all on public.mambo_sync_records;
-create policy sync_records_read_member on public.mambo_sync_records for select using (public.mambo_is_member(store_id));
-create policy sync_records_insert_member on public.mambo_sync_records for insert with check (
+drop policy if exists sync_records_read_member on public.undefined;\ncreate policy sync_records_read_member on public.mambo_sync_records for select using (public.mambo_is_member(store_id));
+drop policy if exists sync_records_insert_member on public.undefined;\ncreate policy sync_records_insert_member on public.mambo_sync_records for insert with check (
  public.mambo_is_member(store_id) and
  (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings')
   and public.mambo_has_role(store_id,array['owner','supervisor'])
   or entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments')
   and public.mambo_is_member(store_id))
 );
-create policy sync_records_update_member on public.mambo_sync_records for update using (
+drop policy if exists sync_records_update_member on public.undefined;\ncreate policy sync_records_update_member on public.mambo_sync_records for update using (
  public.mambo_is_member(store_id) and
  ((entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
   or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments') and public.mambo_is_member(store_id)))
@@ -197,7 +197,7 @@ create policy sync_records_update_member on public.mambo_sync_records for update
  ((entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
   or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments') and public.mambo_is_member(store_id)))
 );
-create policy sync_records_delete_owner on public.mambo_sync_records for delete using (public.mambo_is_owner(store_id));
+drop policy if exists sync_records_delete_owner on public.undefined;\ncreate policy sync_records_delete_owner on public.mambo_sync_records for delete using (public.mambo_is_owner(store_id));
 \n-- Buat store + kaitkan akun Supabase Auth owner secara manual setelah owner mendaftar.
 -- insert into public.mambo_stores(id,store_name) values ('STORE-UUID','Nama Toko');
 -- insert into public.mambo_store_members(store_id,user_id,app_role)
