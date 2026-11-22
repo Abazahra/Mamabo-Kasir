@@ -24,3 +24,6 @@ Data demo dibuat otomatis pada pembukaan pertama ketika database masih kosong.
 - PIN di-hash dengan Web Crypto. Autentikasi lokal bukan pengganti keamanan server untuk penggunaan jaringan/produksi.
 - Satuan bertingkat, harga grosir, dan komponen bundling tersimpan pada master produk. Pemotongan stok saat transaksi, kalkulasi harga otomatis, dan alur kasir/shift masuk Tahap 2.
 - Buat ekspor cadangan berkala. Menghapus data situs dapat menghapus database lokal.
+
+
+Deployment target: GitHub Pages (GitHub Actions).
