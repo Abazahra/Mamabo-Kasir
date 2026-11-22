@@ -124,7 +124,8 @@ begin
   ) order by coalesce(payload->>'name','')), '[]'::jsonb)
   into v_products
   from public.mambo_sync_records
-  where store_id = v_device.store_id and entity = 'products' and deleted = false;
+  where store_id = v_device.store_id and entity = 'products' and deleted = false
+    and lower(trim(coalesce(payload->>'name',''))) not in ('detergen 800 g','gula pasir');
 
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', record_id,
