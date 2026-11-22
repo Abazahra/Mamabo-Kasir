@@ -1,10 +1,11 @@
-const DB_NAME='mambo_kasir_db', DB_VERSION=1;
-const stores=['users','products','categories','customers','suppliers','movements','opnames','settings'];
+const DB_NAME='mambo_kasir_db', DB_VERSION=2;
+const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns'];
 export function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;for(const s of stores){if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'id'});}const p=req.transaction.objectStore('products');if(!p.indexNames.contains('sku'))p.createIndex('sku','sku',{unique:true});if(!p.indexNames.contains('barcode'))p.createIndex('barcode','barcode',{unique:false});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 export async function all(store){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 export async function get(store,id){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 export async function put(store,obj){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).put(obj);tx.oncomplete=()=>res(obj);tx.onerror=()=>rej(tx.error);});}
 export async function remove(store,id){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite');tx.objectStore(store).delete(id);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
 export async function bulkPut(store,items){const db=await openDB();return new Promise((res,rej)=>{const tx=db.transaction(store,'readwrite'),s=tx.objectStore(store);items.forEach(x=>s.put(x));tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
-export async function clearAndSeed(){const db=await openDB();const tx=db.transaction(stores,'readwrite');stores.forEach(s=>tx.objectStore(s).clear());await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});}
+export async function atomic(stores,work){const db=await openDB();return new Promise((resolve,reject)=>{const tx=db.transaction(stores,'readwrite');let result;try{result=work(Object.fromEntries(stores.map(s=>[s,tx.objectStore(s)])));}catch(e){tx.abort();reject(e);return;}tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Transaksi database dibatalkan'));});}
+export async function clearAndSeed(){const db=await openDB();const tx=db.transaction(stores.slice(0,8),'readwrite');stores.slice(0,8).forEach(s=>tx.objectStore(s).clear());await new Promise((r,j)=>{tx.oncomplete=r;tx.onerror=()=>j(tx.error)});}
 export const uid=()=>crypto.randomUUID();
