@@ -3,3 +3,6 @@
 @media(max-width:680px){.grid[style*='repeat(2']{grid-template-columns:1fr!important}.toolbar>input[type=date]{min-width:0;flex:1}.panel{overflow:hidden}}
 
 @media(max-width:680px){.sidebar{overflow-y:auto!important;overflow-x:hidden!important;height:100dvh;max-height:100dvh;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}}
+
+/* Desktop/laptop: sidebar tetap terlihat meskipun viewport menyempit atau zoom diperbesar */
+@media (hover: hover) and (pointer: fine){.sidebar{position:fixed!important;inset:0 auto 0 0!important;width:245px!important;height:100vh!important;max-height:100vh!important;overflow-y:auto!important;overflow-x:hidden!important;transform:translateX(0)!important;z-index:10}.main{margin-left:245px!important;width:calc(100% - 245px)!important}#menuToggle{display:none!important}}
