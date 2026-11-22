@@ -46,3 +46,17 @@ export async function applyCloudRows(rows){
   tx.onabort=()=>reject(tx.error||new Error('Penerapan data cloud dibatalkan'));
  });
 }
+
+// Terapkan katalog perangkat kasir secara lokal tanpa antrean cloud.
+export async function replaceDeviceCatalog(products,categories){
+ const database=await openDB();
+ return new Promise((resolve,reject)=>{
+  const tx=database.transaction(['products','categories'],'readwrite');
+  const p=tx.objectStore('products'),c=tx.objectStore('categories');
+  p.clear();c.clear();
+  (products||[]).forEach(row=>p.put(row));
+  (categories||[]).forEach(row=>c.put(row));
+  tx.oncomplete=()=>resolve({products:(products||[]).length,categories:(categories||[]).length});
+  tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Pembaruan katalog dibatalkan'));
+ });
+}
