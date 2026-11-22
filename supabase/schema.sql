@@ -96,6 +96,55 @@ create policy audit_member_insert on public.mambo_audit_logs for insert with che
 drop policy if exists sync_records_member_all on public.mambo_sync_records;
 create policy sync_records_member_all on public.mambo_sync_records for all using (public.mambo_is_member(store_id)) with check (public.mambo_is_member(store_id));
 
+
+-- Sinkronisasi payload generik ke tabel inti agar data tetap dapat dianalisis SQL.
+create or replace function public.mambo_project_sync_record()
+returns trigger language plpgsql security definer set search_path=public
+as $
+declare p jsonb; rid uuid;
+begin
+ if new.deleted then
+   if new.entity='products' then delete from public.mambo_products where id=new.record_id::uuid and store_id=new.store_id;
+   elsif new.entity='suppliers' then delete from public.mambo_suppliers where id=new.record_id::uuid and store_id=new.store_id;
+   elsif new.entity='movements' then delete from public.mambo_stock_movements where id=new.record_id::uuid and store_id=new.store_id;
+   elsif new.entity='transactions' then delete from public.mambo_transactions where id=new.record_id::uuid and store_id=new.store_id;
+   elsif new.entity='shifts' then delete from public.mambo_shifts where id=new.record_id::uuid and store_id=new.store_id;
+   elsif new.entity='auditLogs' then delete from public.mambo_audit_logs where id=new.record_id::uuid and store_id=new.store_id;
+   end if;
+   return new;
+ end if;
+ p=new.payload; rid=new.record_id::uuid;
+ if new.entity='products' then
+  insert into public.mambo_products(id,store_id,sku,name,barcode,category_id,stock,cost,price,min_stock,payload,updated_at)
+  values(rid,new.store_id,coalesce(p->>'sku',''),coalesce(p->>'name',''),nullif(p->>'barcode',''),nullif(p->>'categoryId','')::uuid,coalesce(nullif(p->>'stock','')::numeric,0),coalesce(nullif(p->>'cost','')::numeric,0),coalesce(nullif(p->>'price','')::numeric,0),coalesce(nullif(p->>'minStock','')::numeric,0),p,new.updated_at)
+  on conflict(id) do update set sku=excluded.sku,name=excluded.name,barcode=excluded.barcode,category_id=excluded.category_id,stock=excluded.stock,cost=excluded.cost,price=excluded.price,min_stock=excluded.min_stock,payload=excluded.payload,updated_at=excluded.updated_at;
+ elsif new.entity='suppliers' then
+  insert into public.mambo_suppliers(id,store_id,name,phone,address,payload,updated_at)
+  values(rid,new.store_id,coalesce(p->>'name',''),p->>'phone',p->>'address',p,new.updated_at)
+  on conflict(id) do update set name=excluded.name,phone=excluded.phone,address=excluded.address,payload=excluded.payload,updated_at=excluded.updated_at;
+ elsif new.entity='movements' then
+  insert into public.mambo_stock_movements(id,store_id,product_id,movement_type,quantity,reference_id,note,payload)
+  values(rid,new.store_id,nullif(p->>'productId','')::uuid,coalesce(p->>'type','unknown'),coalesce(nullif(p->>'delta','')::numeric,0),nullif(p->>'referenceId','')::uuid,p->>'note',p)
+  on conflict(id) do update set product_id=excluded.product_id,movement_type=excluded.movement_type,quantity=excluded.quantity,reference_id=excluded.reference_id,note=excluded.note,payload=excluded.payload;
+ elsif new.entity='transactions' then
+  insert into public.mambo_transactions(id,store_id,receipt_no,total,status,payload,updated_at)
+  values(rid,new.store_id,p->>'receipt',coalesce(nullif(p->>'total','')::numeric,0),coalesce(p->>'status','paid'),p,new.updated_at)
+  on conflict(id) do update set receipt_no=excluded.receipt_no,total=excluded.total,status=excluded.status,payload=excluded.payload,updated_at=excluded.updated_at;
+ elsif new.entity='shifts' then
+  insert into public.mambo_shifts(id,store_id,status,payload,updated_at)
+  values(rid,new.store_id,coalesce(p->>'status','open'),p,new.updated_at)
+  on conflict(id) do update set status=excluded.status,payload=excluded.payload,updated_at=excluded.updated_at;
+ elsif new.entity='auditLogs' then
+  insert into public.mambo_audit_logs(id,store_id,actor_name,action,detail,payload)
+  values(rid,new.store_id,p->>'userName',coalesce(p->>'action','unknown'),p->>'detail',p)
+  on conflict(id) do update set actor_name=excluded.actor_name,action=excluded.action,detail=excluded.detail,payload=excluded.payload;
+ end if;
+ return new;
+end $;
+drop trigger if exists mambo_sync_record_project on public.mambo_sync_records;
+create trigger mambo_sync_record_project after insert or update on public.mambo_sync_records
+for each row execute function public.mambo_project_sync_record();
+
 -- Buat store + kaitkan akun Supabase Auth owner secara manual setelah owner mendaftar.
 -- insert into public.mambo_stores(id,store_name) values ('STORE-UUID','Nama Toko');
 -- insert into public.mambo_store_members(store_id,user_id,app_role)
