@@ -1,5 +1,5 @@
-const DB_NAME='mambo_kasir_db', DB_VERSION=2;
-const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns'];
+const DB_NAME='mambo_kasir_db', DB_VERSION=3;
+const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns','purchases','payables','supplierPayments'];
 export function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;for(const s of stores){if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'id'});}const p=req.transaction.objectStore('products');if(!p.indexNames.contains('sku'))p.createIndex('sku','sku',{unique:true});if(!p.indexNames.contains('barcode'))p.createIndex('barcode','barcode',{unique:false});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 export async function all(store){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 export async function get(store,id){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
