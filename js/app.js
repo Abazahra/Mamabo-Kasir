@@ -3,7 +3,7 @@ import {createUser,login,can,roleName} from './auth.js';
 import {mountPOS,mountShift} from './pos.js';
 import {mountPurchasing} from './purchasing.js';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=public-catalog-1';
-import {startCloudSync} from './cloud-sync.js';
+import {startCloudSync} from './cloud-sync.js?v=sync-pull-1';
 const $=s=>document.querySelector(s), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
 let user=null,page='dashboard',products=[],categories=[],customers=[],suppliers=[],movements=[];
 const LOCAL_SESSION_KEY='mambo_local_session_user';
