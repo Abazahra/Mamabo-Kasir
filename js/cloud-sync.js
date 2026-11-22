@@ -39,3 +39,11 @@ export async function publishPublicCatalog(products,categories,settings,mode='se
  if(rows.length){const {error}=await client.from('mambo_public_catalog_products').upsert(rows,{onConflict:'store_id,product_id'});if(error)throw error;const keep=rows.map(x=>x.product_id);const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId).not('product_id','in','('+keep.join(',')+')');if(deleteError)throw deleteError;}else{const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId);if(deleteError)throw deleteError;}
  return {published:rows.length};
 }
+
+export async function createCashierPairCode(label='Perangkat Kasir'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan terlebih dahulu.');
+ const {data,error}=await client.rpc('mambo_owner_create_pair_code',{p_store_id:storeId,p_label:label});
+ if(error)throw error;
+ return String(data||'');
+}
