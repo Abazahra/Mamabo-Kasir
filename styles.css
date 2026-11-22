@@ -12,7 +12,7 @@
 
 /* Mobile POS: keep the payment action reachable above the browser/system bars */
 @media (max-width: 680px){
-  .pos-right{padding-bottom:82px!important}
+  .pos-right{padding-bottom:180px!important}
   .pos-right #pay{
     position:fixed!important;
     left:13px!important;
