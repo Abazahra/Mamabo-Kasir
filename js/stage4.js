@@ -1,4 +1,4 @@
-import {all,put,remove,atomic,uid} from './db.js';
+import {all,put,remove,atomic,uid} from './db.js?v=clear-fix-1';
 import {configureCloud,cloudSignIn,cloudSignOut,pendingSyncCount} from './cloud-sync.js';
 const $=s=>document.querySelector(s),money=n=>'Rp '+Math.round(Number(n||0)).toLocaleString('id-ID'),day=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'}),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns','purchases','payables','supplierPayments','auditLogs'];
