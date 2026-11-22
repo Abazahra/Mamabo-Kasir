@@ -53,9 +53,16 @@ export async function replaceDeviceCatalog(products,categories){
  return new Promise((resolve,reject)=>{
   const tx=database.transaction(['products','categories'],'readwrite');
   const p=tx.objectStore('products'),c=tx.objectStore('categories');
-  p.clear();c.clear();
-  (products||[]).forEach(row=>p.put(row));
-  (categories||[]).forEach(row=>c.put(row));
+  const oldReq=p.getAll();
+  oldReq.onsuccess=()=>{
+   const old=new Map((oldReq.result||[]).map(x=>[String(x.id),x]));
+   p.clear();c.clear();
+   (products||[]).forEach(row=>{
+    const prior=old.get(String(row.id));
+    p.put({...row,...(prior?{stock:prior.stock,photo:prior.photo||null,photoType:prior.photoType||row.photoType}: {})});
+   });
+   (categories||[]).forEach(row=>c.put(row));
+  };
   tx.oncomplete=()=>resolve({products:(products||[]).length,categories:(categories||[]).length});
   tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Pembaruan katalog dibatalkan'));
  });
