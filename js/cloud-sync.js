@@ -36,8 +36,6 @@ export async function publishPublicCatalog(products,categories,settings,mode='se
  }
  const {error:settingsError}=await client.from('mambo_public_catalog_settings').upsert({store_id:storeId,store_name:String(settings.storeName||'MAMBO KASIR'),whatsapp:String(settings.catalogWhatsapp||settings.phone||''),tagline:String(settings.catalogTagline||'Pesan produk favorit Anda')},{onConflict:'store_id'});
  if(settingsError)throw settingsError;
- const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId);
- if(deleteError)throw deleteError;
- if(rows.length){const {error}=await client.from('mambo_public_catalog_products').upsert(rows,{onConflict:'store_id,product_id'});if(error)throw error;}
+ if(rows.length){const {error}=await client.from('mambo_public_catalog_products').upsert(rows,{onConflict:'store_id,product_id'});if(error)throw error;const keep=rows.map(x=>x.product_id);const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId).not('product_id','in','('+keep.join(',')+')');if(deleteError)throw deleteError;}else{const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId);if(deleteError)throw deleteError;}
  return {published:rows.length};
 }
