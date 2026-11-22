@@ -14,3 +14,30 @@ export async function startCloudSync(){if(syncStarted)return;syncStarted=true;tr
 export async function cloudStatus(){await ensureClient();return {configured:!!client,authenticated:!!session,storeId};}
 export async function pendingSyncCount(){return (await all('syncQueue')).length;}
 export async function cloudPull(){await ensureClient();if(!client||!session)throw Error('Login cloud diperlukan.');const {data,error}=await client.from('mambo_sync_records').select('entity,record_id,payload,deleted').eq('store_id',storeId);if(error)throw error;return data||[];}
+
+
+// Publikasi katalog hanya mengirim kolom aman; data HPP, stok, transaksi, dan payload internal tidak pernah dikirim.
+export async function publishPublicCatalog(products,categories,settings,mode='selected'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Supabase sebagai pemilik toko diperlukan untuk menerbitkan katalog.');
+ const visible=products.filter(p=>mode==='all'||(mode==='selected'&&p.publicVisible===true));
+ const categoryName=id=>categories.find(c=>c.id===id)?.name||'Lainnya';
+ const rows=[];
+ for(const p of visible){
+  let image_url=null;
+  if(p.photo){
+   const ext=String(p.photoType||'image/jpeg').split('/')[1]?.replace(/[^a-z0-9]/gi,'')||'jpg';
+   const path=storeId+'/'+p.id+'.'+ext;
+   const {error:uploadError}=await client.storage.from('mambo-product-images').upload(path,new Blob([p.photo],{type:p.photoType||'image/jpeg'}),{upsert:true,contentType:p.photoType||'image/jpeg',cacheControl:'3600'});
+   if(uploadError)throw uploadError;
+   image_url=client.storage.from('mambo-product-images').getPublicUrl(path).data.publicUrl;
+  }
+  rows.push({store_id:storeId,product_id:String(p.id),sku:String(p.sku||''),name:String(p.name||''),category_name:categoryName(p.categoryId),price:Number(p.price||0),image_url,updated_at:new Date().toISOString()});
+ }
+ const {error:settingsError}=await client.from('mambo_public_catalog_settings').upsert({store_id:storeId,store_name:String(settings.storeName||'MAMBO KASIR'),whatsapp:String(settings.catalogWhatsapp||settings.phone||''),tagline:String(settings.catalogTagline||'Pesan produk favorit Anda')},{onConflict:'store_id'});
+ if(settingsError)throw settingsError;
+ const {error:deleteError}=await client.from('mambo_public_catalog_products').delete().eq('store_id',storeId);
+ if(deleteError)throw deleteError;
+ if(rows.length){const {error}=await client.from('mambo_public_catalog_products').upsert(rows,{onConflict:'store_id,product_id'});if(error)throw error;}
+ return {published:rows.length};
+}
