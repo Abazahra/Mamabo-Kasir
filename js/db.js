@@ -1,5 +1,5 @@
-const DB_NAME='mambo_kasir_db', DB_VERSION=5;
-const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns','purchases','payables','supplierPayments','auditLogs','syncQueue'];
+const DB_NAME='mambo_kasir_db', DB_VERSION=6;
+const stores=['users','products','categories','customers','suppliers','movements','opnames','settings','transactions','shifts','heldCarts','receivables','promos','returns','purchases','payables','supplierPayments','auditLogs','operationalExpenses','syncQueue'];
 const CLOUD_SKIP=new Set(['users','heldCarts','syncQueue']);
 export function openDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;for(const s of stores){if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'id'});}const p=req.transaction.objectStore('products');if(!p.indexNames.contains('sku'))p.createIndex('sku','sku',{unique:true});if(!p.indexNames.contains('barcode'))p.createIndex('barcode','barcode',{unique:false});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
 export async function all(store){const db=await openDB();return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -17,7 +17,7 @@ export const uid=()=>crypto.randomUUID();
 // Perubahan lokal yang masih antre selalu menang.
 export async function applyCloudRows(rows){
  const db=await openDB();
- const valid=new Set(['products','suppliers','movements','transactions','shifts','auditLogs','categories','customers','opnames','settings','receivables','promos','returns','purchases','payables','supplierPayments']);
+ const valid=new Set(['products','suppliers','movements','transactions','shifts','auditLogs','categories','customers','opnames','settings','receivables','promos','returns','purchases','payables','supplierPayments','operationalExpenses']);
  const names=[...valid,'syncQueue'];
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(names,'readwrite'),q=tx.objectStore('syncQueue');
