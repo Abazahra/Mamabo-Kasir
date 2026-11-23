@@ -47,3 +47,15 @@ export async function createCashierPairCode(label='Perangkat Kasir'){
  if(error)throw error;
  return String(data||'');
 }
+
+
+// Pengelolaan akun karyawan: seluruh operasi divalidasi RPC di sisi database.
+async function requireOwnerCloud(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan. Buka Pengaturan > Integrasi Supabase Cloud.');
+ return {client,storeId};
+}
+export async function staffAccountList(){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_list',{p_store_id:storeId});if(error)throw error;return Array.isArray(data)?data:[];}
+export async function staffAccountCreate(username,name,role,pin){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_create',{p_store_id:storeId,p_username:username,p_display_name:name,p_app_role:role,p_pin:pin});if(error)throw error;return data;}
+export async function staffAccountUpdate(id,username,name,role,active){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_update',{p_store_id:storeId,p_staff_id:id,p_username:username,p_display_name:name,p_app_role:role,p_active:active});if(error)throw error;return data;}
+export async function staffAccountResetPin(id,pin){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_reset_pin',{p_store_id:storeId,p_staff_id:id,p_pin:pin});if(error)throw error;return data;}
