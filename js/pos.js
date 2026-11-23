@@ -125,7 +125,13 @@ export async function mountTransactionHistory(root,user){
   const receiptData={receipt:tx.receipt,items:tx.items||[],total:Number(tx.total)||0,subtotal:Number(tx.subtotal??tx.total)||0,discount:Number(tx.discount)||0,tax:Number(tx.tax)||0,payments:tx.payments||[],customer:tx.customerName||'Pelanggan Umum',cashier:tx.userName||'',stamp:tx.time||''};
   if(b.dataset.waTx){shareReceiptWhatsApp(receiptData);return;}
   if(b.dataset.printTx){receiptPrint(receiptData);return;}
-  if(b.dataset.detail){const detail=document.createElement('div');detail.className='modal-backdrop';detail.innerHTML='<section class="modal"><h2>Detail '+esc(tx.receipt)+'</h2><p>'+esc(tx.time)+' · '+esc(tx.userName)+'</p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th>Jumlah</th></tr></thead><tbody>'+tx.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.price*i.qty)+'</td></tr>').join('')+'</tbody></table></div><h3>Total: '+money(tx.total)+'</h3><div class="modal-actions"><button class="secondary" id="closeDetail">Tutup</button></div></section>';document.body.append(detail);detail.querySelector('#closeDetail').onclick=()=>detail.remove();return;}
+  if(b.dataset.detail){
+   const detail=document.createElement('div');detail.className='modal-backdrop';
+   const detailItems=tx.items||[],hppTotal=detailItems.reduce((sum,i)=>sum+(Number(i.cost)||0)*(Number(i.qty)||0),0);
+   const missingHpp=detailItems.filter(i=>i.cost===undefined||i.cost===null||!Number.isFinite(Number(i.cost))||Number(i.cost)<=0);
+   detail.innerHTML='<section class="modal"><h2>Detail '+esc(tx.receipt)+'</h2><p>'+esc(tx.time)+' · '+esc(tx.userName)+'</p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga Jual</th><th>Jumlah</th><th>HPP/unit</th><th>Total HPP</th></tr></thead><tbody>'+detailItems.map(i=>{const qty=Number(i.qty)||0,cost=Number(i.cost)||0;return '<tr><td>'+esc(i.name)+'</td><td>'+qty+'</td><td>'+money(i.price)+'</td><td>'+money((Number(i.price)||0)*qty)+'</td><td>'+money(cost)+'</td><td>'+money(cost*qty)+'</td></tr>';}).join('')+'</tbody></table></div><h3>Total Penjualan: '+money(tx.total)+'</h3><h3>Total HPP: '+money(hppTotal)+'</h3><p class="muted">'+(missingHpp.length?'Perhatian: '+missingHpp.length+' baris memiliki HPP nol atau belum tercatat. Total HPP di atas belum dapat dianggap lengkap.':'Semua baris memiliki HPP positif dan total dihitung dari HPP/unit × Qty.')+'</p><div class="modal-actions"><button class="secondary" id="closeDetail">Tutup</button></div></section>';
+   document.body.append(detail);detail.querySelector('#closeDetail').onclick=()=>detail.remove();return;
+  }
   openEdit(tx,products,user,activeShift,privileged,draw,root);
  };
 }
