@@ -1,4 +1,4 @@
-import {all,put,atomic,uid} from './db.js';
+import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
 const $=s=>document.querySelector(s),rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'});
