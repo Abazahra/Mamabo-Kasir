@@ -1,4 +1,4 @@
-import {all,put,atomic,uid} from './db.js';
+import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
