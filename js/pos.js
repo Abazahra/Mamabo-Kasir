@@ -77,7 +77,7 @@ export async function mountTransactionHistory(root,user){
  root.innerHTML='<h1>Riwayat Transaksi</h1><p class="sub">'+(privileged?'Riwayat transaksi seluruh kasir.':'Transaksi Anda pada shift yang masih terbuka.')+'</p><section class="panel"><div class="toolbar"><input id="historySearch" placeholder="Cari nomor struk atau pelanggan"><input id="historyDate" type="date"></div><div id="historyTable"></div></section>';
  const draw=()=>{
   const q=$('#historySearch').value.toLowerCase(),date=$('#historyDate').value;
-  const rows=visible.filter(t=>(!q||[t.receipt,t.customerName,t.userName].join(' ').toLowerCase().includes(q))&&(!date||String(t.time||'').slice(0,10)===date));
+  const rows=visible.filter(t=>(!q||[t.receipt,t.customerName,t.userName].join(' ').toLowerCase().includes(q))&&(!date||isoDate(t)===date));
   $('#historyTable').innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>No. Struk</th><th>Kasir</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+rows.map(t=>'<tr><td>'+esc(t.time)+'</td><td>'+esc(t.receipt)+'</td><td>'+esc(t.userName)+'</td><td>'+money(t.total)+'</td><td><span class="pill">'+(t.status==='paid'?'Lunas':esc(t.status))+'</span></td><td><button class="secondary" data-detail="'+t.id+'">Detail</button> '+((privileged||(activeShift&&t.shiftId===activeShift.id&&t.userId===user.id))?'<button class="primary" data-edit-tx="'+t.id+'">Edit</button>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Belum ada transaksi pada cakupan ini.</div>';
  };
  draw();$('#historySearch').oninput=draw;$('#historyDate').onchange=draw;
