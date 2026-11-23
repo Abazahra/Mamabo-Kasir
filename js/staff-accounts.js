@@ -1,4 +1,4 @@
-import {staffAccountList,staffAccountCreate,staffAccountUpdate,staffAccountResetPin} from './cloud-sync.js?v=sync-pull-2';
+import {staffAccountList,staffAccountCreate,staffAccountUpdate,staffAccountResetPin} from './cloud-sync.js?v=operational-normalization-2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function mountStaffAccounts(root,user){
  if(user?.role!=='owner'){root.innerHTML='<section class="panel">Hanya Owner yang dapat mengelola akun karyawan.</section>';return;}
