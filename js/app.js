@@ -1,12 +1,12 @@
 import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords} from './db.js?v=operational-normalization-2';
 import {createUser,login,can,roleName} from './auth.js?v=operational-normalization-2';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=operational-normalization-2';
-import {mountPurchasing} from './purchasing.js';
+import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=operational-normalization-2';
 import {startCloudSync,cloudStatus,syncNow} from './cloud-sync.js?v=operational-normalization-2';
 import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff,startDeviceDataSync} from './device-pairing.js?v=operational-normalization-2';
-import {mountStaffAccounts} from './staff-accounts.js?v=staff-1';
-import {mountExpenses} from './expenses.js?v=operational-expenses-1';
+import {mountStaffAccounts} from './staff-accounts.js?v=operational-normalization-2';
+import {mountExpenses} from './expenses.js?v=operational-normalization-2';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
 let user=null,page='dashboard',products=[],categories=[],customers=[],suppliers=[],movements=[];
 const LOCAL_SESSION_KEY='mambo_local_session_user';
