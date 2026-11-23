@@ -76,13 +76,9 @@ async function shareReceiptWhatsApp(t){
  const blob=await new Promise(resolve=>ctxCanvas.toBlob(resolve,'image/png'));
  if(!blob)throw new Error('Gambar struk gagal dibuat.');
  const file=new File([blob],'Struk-'+(t.receipt||'MAMBO')+'.png',{type:'image/png'});
- if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-  await navigator.share({files:[file]});
-  return;
- }
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(url),30000);
- toast('Gambar struk diunduh. Lampirkan gambar tersebut di WhatsApp.');
+ toast('Gambar struk diunduh. Buka WhatsApp dan lampirkan gambar dari folder Download.');
 }
 async function receiptPrint(t){
  const settings=(await all('settings'))[0]||{},width=Number(settings.receiptWidth)===80?80:58,paper=width===80?'72mm':'48mm',money=n=>rp(Number(n)||0);
