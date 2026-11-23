@@ -2,7 +2,7 @@ import {all,put,remove,bulkPut,clearAndSeed,uid} from './db.js';
 import {createUser,login,can,roleName} from './auth.js?v=transactions-3';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-image-3';
 import {mountPurchasing} from './purchasing.js';
-import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=device-pair-1';
+import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=owner-bootstrap-1';
 import {startCloudSync} from './cloud-sync.js?v=sync-pull-2';
 import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff,startDeviceDataSync} from './device-pairing.js?v=device-data-sync-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=staff-1';
