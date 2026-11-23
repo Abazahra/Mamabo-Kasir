@@ -24,7 +24,7 @@ export async function mountPOS(root,user){
  const receiptData={receipt,items,total:t.total,subtotal:t.sub,discount:t.d,tax:t.vat,payments:pays,customer:customer?.name||'Pelanggan Umum',stamp};
  const done=document.createElement('div');done.className='modal-backdrop';done.innerHTML=`<section class="modal"><h2>Transaksi Berhasil</h2><p>Pembayaran ${rp(t.total)} sudah tersimpan.</p><p class="muted">Apakah Anda ingin mencetak struk?</p><div class="modal-actions"><button class="secondary" id="finishNoPrint">Selesai</button><button class="primary" id="printReceiptNow">Cetak Struk</button></div></section>`;document.body.append(done);
  done.querySelector('#finishNoPrint').onclick=()=>done.remove();
- done.querySelector('#printReceiptNow').onclick=()=>{done.remove();receiptPrint(receiptData).catch?.(()=>{});};
+ done.querySelector('#printReceiptNow').onclick=()=>{done.remove();receiptPrint(receiptData);};
  }catch(err){dlg.querySelector('#payError').textContent=err.message||'Pembayaran gagal';}};
  };
  draw();drawCart();$('#scan').focus();window.onkeydown=e=>{if(e.key==='F1'){e.preventDefault();$('#scan')?.focus()}else if(e.key==='F2'){e.preventDefault();$('#hold')?.click()}else if(e.key==='F4'){e.preventDefault();$('#recall')?.click()}else if(e.key==='F8'){e.preventDefault();$('#customer')?.focus()}else if(e.key==='F9'){e.preventDefault();$('#discount')?.focus()}else if(e.key==='F12'){e.preventDefault();$('#pay')?.click()}};
