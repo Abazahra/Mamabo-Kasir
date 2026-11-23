@@ -39,4 +39,21 @@ revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from pu
 revoke all on function public.mambo_device_sync_pull(text) from public;
 grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
 grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
+-- Izinkan entitas biaya operasional melalui jalur Cloud Owner dan perangkat kasir.
+drop policy if exists sync_records_insert_member on public.mambo_sync_records;
+create policy sync_records_insert_member on public.mambo_sync_records for insert with check (
+ public.mambo_is_member(store_id) and (
+  (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
+  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments','operationalExpenses') and public.mambo_is_member(store_id))
+ ));
+drop policy if exists sync_records_update_member on public.mambo_sync_records;
+create policy sync_records_update_member on public.mambo_sync_records for update using (
+ public.mambo_is_member(store_id) and (
+  (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
+  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments','operationalExpenses') and public.mambo_is_member(store_id))
+ )) with check (
+ public.mambo_is_member(store_id) and (
+  (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
+  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments','operationalExpenses') and public.mambo_is_member(store_id))
+ ));
 notify pgrst,'reload schema';
