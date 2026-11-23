@@ -48,3 +48,20 @@
   .main{margin-left:0!important;width:100%!important}
   #menuToggle{display:inline-block!important}
 }
+
+/* Perangkat sentuh: drawer dapat digulir pada portrait maupun landscape. */
+@media (hover: none) and (pointer: coarse){
+  .sidebar{
+    min-height:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;
+    overscroll-behavior-y:contain!important;
+    touch-action:pan-y!important;
+  }
+  .sidebar nav{flex:0 0 auto!important;min-height:max-content!important;overflow:visible!important}
+  .side-bottom{flex:0 0 auto!important;margin-top:12px!important}
+  .sidebar.open{transform:translateX(0)!important}
+  .main{margin-left:0!important;width:100%!important}
+  #menuToggle{display:inline-block!important}
+}
