@@ -69,7 +69,7 @@ begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then raise exception 'Akses hanya untuk Owner toko.'; end if;
  if p_pin !~ '^\d{4,6}$' then raise exception 'PIN harus 4–6 angka.'; end if;
  salt:=gen_random_uuid()::text;
- update public.mambo_staff_accounts set pin_salt=salt,pin_hash=encode(digest(salt||':'||p_pin,'sha256'),'hex'),updated_at=now()
+ update public.mambo_staff_accounts set pin_salt=salt,pin_hash=crypt(p_pin,gen_salt('bf',10)),updated_at=now()
  where id=p_staff_id and store_id=p_store_id;
  if not found then raise exception 'Akun karyawan tidak ditemukan.'; end if;
  return jsonb_build_object('ok',true);
