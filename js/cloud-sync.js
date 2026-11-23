@@ -1,4 +1,4 @@
-import {all,put,remove,uid,applyCloudRows} from './db.js?v=sync-pull-1';
+import {all,put,remove,uid,applyCloudRows} from './db.js?v=operational-normalization-2';
 let client=null,storeId=null,session=null,busy=false,syncPromise=null,clientConfigKey=null,authSubscription=null,syncStarted=false;
 function notifyQueue(){all('syncQueue').then(rows=>window.dispatchEvent(new CustomEvent('mambo-sync-update',{detail:{pending:rows.length}}))).catch(()=>{});}
 const $=s=>document.querySelector(s);
