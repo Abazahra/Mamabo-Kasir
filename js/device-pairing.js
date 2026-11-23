@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=device-pair-2';
+import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=operational-normalization-2';
 const SUPABASE_URL='https://wtsheaowviaedwhyiwkk.supabase.co';
 const SUPABASE_KEY='sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
 const KEY='mambo_paired_device';
