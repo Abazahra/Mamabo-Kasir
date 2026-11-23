@@ -85,10 +85,10 @@ export async function syncDeviceData(){
   // Kirim perubahan terbaru dari antrean lokal.
   const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
   for(let i=0;i<queue.length;i+=300){
-   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.operation!=='delete')
-    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{})}));
+   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity))
+    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{}),deleted:x.operation==='delete'}));
    if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
-   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity)&&item.operation!=='delete')await remove('syncQueue',item.id);
+   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity))await remove('syncQueue',item.id);
   }
   const rows=await deviceRpc('mambo_device_sync_pull',{p_device_token:saved.token});
   const result=await applyCloudRows(Array.isArray(rows)?rows:[]);
