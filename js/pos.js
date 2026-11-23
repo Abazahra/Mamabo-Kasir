@@ -36,7 +36,7 @@ async function shareReceiptWhatsApp(t){
  const money=n=>rp(Number(n)||0);
  const width=900,pad=64,line=42,items=t.items||[],payments=t.payments||[];
  const ctxCanvas=document.createElement('canvas'),ctx=ctxCanvas.getContext('2d');
- const wrap=(text,max,font)=>{ctx.font=font;const words=String(text??'').split(/\\s+/);const out=[];let row='';for(const word of words){const test=row?row+' '+word:word;if(ctx.measureText(test).width>max&&row){out.push(row);row=word;}else row=test;}if(row)out.push(row);return out.length?out:[''];};
+ const wrap=(text,max,font)=>{ctx.font=font;const words=String(text??'').split(' ');const out=[];let row='';for(const word of words){const test=row?row+' '+word:word;if(ctx.measureText(test).width>max&&row){out.push(row);row=word;}else row=test;}if(row)out.push(row);return out.length?out:[''];};
  let height=pad+70+44+4*line+28;
  for(const item of items)height+=Math.max(2,wrap(item.name||'Produk',width-pad*2,'bold 34px Arial').length)*line+line*2+18;
  height+=line*8+payments.length*line+120;
