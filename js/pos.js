@@ -57,36 +57,23 @@ async function shareReceiptWhatsApp(t){
  window.open(url,'_blank','noopener');
 }
 async function receiptPrint(t){
- const settings=(await all('settings'))[0]||{};
- const width=Number(settings.receiptWidth)===80?80:58;
- const paper=width===80?'72mm':'48mm';
- const money=n=>rp(n);
- const lines=t.items.map(x=>`<div class="item"><div class="name">${esc(x.name)}</div><div class="detail"><span>${x.qty} × ${money(x.price)}</span><b>${money(x.price*x.qty)}</b></div></div>`).join('');
- const payments=(t.payments||[]).map(x=>`<div class="line"><span>${esc(x.method)}</span><b>${money(x.amount)}</b></div>`).join('');
- const w=window.open('','_blank','width=420,height=720');
- if(!w){toast('Izinkan pop-up untuk mencetak struk.');return;}
- w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Struk ${esc(t.receipt)}</title><style>
- *{box-sizing:border-box}body{font:12px/1.35 "Courier New",monospace;width:${paper};max-width:100%;margin:0 auto;padding:3mm;color:#000}
- h2{font-size:17px;text-align:center;margin:0 0 3px;font-weight:700} .center{text-align:center} .muted{font-size:10px}
- .rule{border:0;border-top:1px dashed #000;margin:7px 0}.line,.detail{display:flex;justify-content:space-between;gap:8px}
- .item{margin:5px 0}.name{overflow-wrap:anywhere}.detail{margin-top:1px}.total{font-size:15px;font-weight:bold}
- .thanks{text-align:center;margin-top:10px;font-weight:bold}
- @page{size:${width}mm auto;margin:0} @media print{html,body{width:${paper};min-width:${paper};margin:0;padding:0}body{font-size:13px}button{display:none}}
- </style></head><body>
- <h2>${esc(settings.storeName||'MAMBO KASIR')}</h2>
- ${settings.address?`<div class="center muted">${esc(settings.address)}</div>`:''}
- ${settings.phone?`<div class="center muted">Telp. ${esc(settings.phone)}</div>`:''}
- <hr class="rule"><div class="center">${esc(t.stamp)}<br>${esc(t.receipt)}</div><hr class="rule">
- ${lines}<hr class="rule">
- <div class="line"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
- ${t.discount?'<div class="line"><span>Diskon</span><b>−'+money(t.discount)+'</b></div>':''}
- ${t.tax?'<div class="line"><span>Pajak</span><b>'+money(t.tax)+'</b></div>':''}
- <hr class="rule"><div class="line total"><span>TOTAL</span><b>${money(t.total)}</b></div>
- <hr class="rule">${payments}
- <div class="line"><span>Pelanggan</span><span>${esc(t.customer)}</span></div>
- <hr class="rule"><div class="thanks">${esc(settings.receiptFooter||'Terima kasih')}</div>
- <script>window.onload=()=>window.print()<\/script></body></html>`);
- w.document.close();
+ const settings=(await all('settings'))[0]||{},width=Number(settings.receiptWidth)===80?80:58,paper=width===80?'72mm':'48mm',money=n=>rp(Number(n)||0);
+ const items=(t.items||[]).map(x=>`<article class="item"><div class="name">${esc(x.name||'Produk')}</div>${x.sku?`<div class="sku">${esc(x.sku)}</div>`:''}<div class="row"><span>${Number(x.qty)||0} × ${money(x.price)}</span><b>${money((Number(x.qty)||0)*(Number(x.price)||0))}</b></div></article>`).join('');
+ const payments=(t.payments||[]).map(x=>`<div class="row"><span>${esc(x.method||'Pembayaran')}</span><b>${money(x.amount)}</b></div>`).join('');
+ const cash=(t.payments||[]).filter(x=>String(x.method||'').toLowerCase()==='tunai').reduce((a,x)=>a+Number(x.amount||0),0),change=Math.max(0,cash-Number(t.total||0));
+ const w=window.open('','_blank','width=460,height=760');if(!w){toast('Izinkan pop-up untuk mencetak struk.');return;}
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Struk ${esc(t.receipt||'')}</title><style>
+ *{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111}body{font:11px/1.4 Arial,Helvetica,sans-serif;width:${paper};max-width:100%;margin:0 auto;padding:4mm 3mm}
+ .brand{text-align:center;padding:2mm 0 3mm;border-bottom:1px solid #222}.brand h1{font-size:17px;line-height:1.15;margin:0 0 4px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}.brand p{font-size:9px;margin:1px 0;color:#333;overflow-wrap:anywhere}.tag{display:inline-block;border:1px solid #333;border-radius:20px;padding:2px 8px;margin-top:5px;font-size:8px;font-weight:bold;letter-spacing:1px}
+ .meta{padding:7px 0;border-bottom:1px dashed #555}.row{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.row span{color:#444}.row b{white-space:nowrap}.item{padding:5px 0;border-bottom:1px dotted #bbb}.name{font-weight:bold;font-size:11px;overflow-wrap:anywhere}.sku{font-size:8px;color:#666}.section{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px}.summary{padding:6px 0;border-bottom:1px dashed #555}.grand{display:flex;justify-content:space-between;align-items:center;background:#f1f1f1;border:1px solid #222;padding:8px 6px;margin:8px 0;font-weight:800}.grand b{font-size:15px;white-space:nowrap}.payments{padding:5px 0;border-bottom:1px dashed #555}.change{font-weight:bold}.customer{padding:6px 0;border-bottom:1px dashed #555}.footer{text-align:center;padding:10px 2px 2px}.footer strong{font-size:11px}.footer p{font-size:9px;color:#444;margin:3px 0}.note{font-size:8px;color:#666;margin-top:7px}
+ @page{size:${width}mm auto;margin:0}@media print{html,body{width:${paper};min-width:${paper};margin:0;padding:0;background:#fff}body{padding:3mm 2.5mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+ </style></head><body><header class="brand"><h1>${esc(settings.storeName||'MAMBO KASIR')}</h1>${settings.address?`<p>${esc(settings.address)}</p>`:''}${settings.phone?`<p>Telp. ${esc(settings.phone)}</p>`:''}<span class="tag">BUKTI PEMBAYARAN</span></header>
+ <section class="meta"><div class="row"><span>No. Struk</span><b>${esc(t.receipt||'-')}</b></div><div class="row"><span>Tanggal</span><b>${esc(t.stamp||'-')}</b></div>${t.cashier?`<div class="row"><span>Kasir</span><b>${esc(t.cashier)}</b></div>`:''}</section>
+ <div class="section">Rincian Belanja</div>${items||'<p>Tidak ada rincian produk.</p>'}
+ <section class="summary"><div class="row"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>${Number(t.discount)?`<div class="row"><span>Diskon</span><b>− ${money(t.discount)}</b></div>`:''}${Number(t.tax)?`<div class="row"><span>Pajak</span><b>${money(t.tax)}</b></div>`:''}</section>
+ <div class="grand"><span>TOTAL BAYAR</span><b>${money(t.total)}</b></div><div class="section">Pembayaran</div><section class="payments">${payments||'<div class="row"><span>Status</span><b>Lunas</b></div>'}${change>0?`<div class="row change"><span>Kembalian</span><b>${money(change)}</b></div>`:''}</section>
+ <section class="customer"><div class="row"><span>Pelanggan</span><b>${esc(t.customer||'Pelanggan Umum')}</b></div></section><footer class="footer"><strong>${esc(settings.receiptFooter||'Terima kasih telah berbelanja')}</strong><p>Barang yang sudah dibeli mohon diperiksa kembali.</p><p class="note">Bukti transaksi • ${esc(settings.storeName||'MAMBO KASIR')}</p></footer>
+ <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);w.document.close();
 }
 export async function mountShift(root,user){const shifts=await all('shifts'),s=shifts.find(x=>x.userId===user.id&&x.status==='open');root.innerHTML='<h1>Shift & Laci Kas</h1><p class="sub">Buka shift, petty cash, dan tutup laci kas</p><section class="panel" id="shiftPanel"></section>';const p=$('#shiftPanel');if(!s){p.innerHTML='<h3>Buka Shift</h3><div class="field"><label>Modal awal laci kas</label><input id="opening" type="number" min="0" value="100000"></div><button class="primary" id="openShift">Buka Shift</button>';$('#openShift').onclick=async()=>{const n=Number($('#opening').value);if(!Number.isFinite(n)||n<0)return toast('Modal awal tidak valid');await put('shifts',{id:uid(),userId:user.id,userName:user.name,openingCash:n,cashSales:0,sales:0,cashIn:0,cashOut:0,refund:0,status:'open',openedAt:now()});mountShift(root,user)};return;}
  const expected=s.openingCash+s.cashSales+s.cashIn-s.cashOut-s.refund;p.innerHTML=`<div class="grid"><div class="stat"><span>Modal awal</span><strong>${rp(s.openingCash)}</strong></div><div class="stat"><span>Penjualan tunai</span><strong>${rp(s.cashSales)}</strong></div><div class="stat"><span>Kas masuk</span><strong>${rp(s.cashIn)}</strong></div><div class="stat"><span>Kas keluar</span><strong>${rp(s.cashOut)}</strong></div></div><p>Shift dibuka: ${s.openedAt}</p><div class="actions"><button class="secondary" id="cashIn">Kas Masuk</button><button class="secondary" id="cashOut">Kas Keluar</button></div><div class="grand-total">Kas sistem: ${rp(expected)}</div><div class="field"><label>Uang fisik saat tutup</label><input id="counted" type="number" min="0"></div><button class="danger" id="close">Tutup Shift</button><div id="summary"></div>`;
