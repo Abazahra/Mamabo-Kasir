@@ -33,29 +33,56 @@ export async function mountPOS(root,user){
 
 async function shareReceiptWhatsApp(t){
  const settings=(await all('settings'))[0]||{};
- const settingsCache=settings.storeName||'MAMBO KASIR';
- const money=n=>rp(n);
- const textLines=[
-  '*'+settingsCache+'*',
-  'e-STRUK / BUKTI PEMBAYARAN',
-  'No. Struk: '+t.receipt,
-  'Tanggal: '+t.stamp,
-  ...(t.cashier?['Kasir: '+t.cashier]:[]),
-  '--------------------------------',
-  ...(t.items||[]).map(x=>x.name+'\n'+x.qty+' x '+money(x.price)+' = '+money(x.price*x.qty)),
-  '--------------------------------',
-  'Subtotal: '+money(t.subtotal),
-  ...(t.discount?[('Diskon: -'+money(t.discount))]:[]),
-  ...(t.tax?[('Pajak: '+money(t.tax))]:[]),
-  '*TOTAL: '+money(t.total)+'*',
-  'Pembayaran:',
-  ...(t.payments||[]).map(x=>x.method+': '+money(x.amount)),
-  'Pelanggan: '+(t.customer||'Pelanggan Umum'),
-  '',
-  'Terima kasih telah berbelanja.'
- ];
- const url='https://wa.me/?text='+encodeURIComponent(textLines.join('\n'));
- window.open(url,'_blank','noopener');
+ const money=n=>rp(Number(n)||0);
+ const width=900,pad=64,line=42,items=t.items||[],payments=t.payments||[];
+ const ctxCanvas=document.createElement('canvas'),ctx=ctxCanvas.getContext('2d');
+ const wrap=(text,max,font)=>{ctx.font=font;const words=String(text??'').split(/\\s+/);const out=[];let row='';for(const word of words){const test=row?row+' '+word:word;if(ctx.measureText(test).width>max&&row){out.push(row);row=word;}else row=test;}if(row)out.push(row);return out.length?out:[''];};
+ let height=pad+70+44+4*line+28;
+ for(const item of items)height+=Math.max(2,wrap(item.name||'Produk',width-pad*2,'bold 34px Arial').length)*line+line*2+18;
+ height+=line*8+payments.length*line+120;
+ ctxCanvas.width=width;ctxCanvas.height=height;
+ ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);
+ let y=pad;
+ const center=(text,size,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='center';ctx.fillText(text,width/2,y);y+=size+18;};
+ const left=(text,size=30,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(String(text??''),pad,y);y+=size+12;};
+ const rule=()=>{ctx.strokeStyle='#aab2bd';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(width-pad,y);ctx.stroke();ctx.setLineDash([]);y+=24;};
+ const pair=(label,value)=>{ctx.font='30px Arial';ctx.fillStyle='#475569';ctx.textAlign='left';ctx.fillText(label,pad,y);ctx.font='bold 30px Arial';ctx.fillStyle='#111827';ctx.textAlign='right';ctx.fillText(value,width-pad,y);y+=line;};
+ center(settings.storeName||'MAMBO KASIR',48,true);
+ if(settings.address)center(settings.address,24,false,'#475569');
+ if(settings.phone)center('Telp. '+settings.phone,24,false,'#475569');
+ center('BUKTI PEMBAYARAN',25,true);
+ rule();
+ pair('No. Struk',t.receipt||'-');pair('Tanggal',t.stamp||'-');if(t.cashier)pair('Kasir',t.cashier);
+ rule();left('RINCIAN BELANJA',25,true);
+ for(const item of items){
+  const names=wrap(item.name||'Produk',width-pad*2,'bold 34px Arial');
+  ctx.font='bold 34px Arial';ctx.fillStyle='#111827';ctx.textAlign='left';
+  for(const name of names){ctx.fillText(name,pad,y);y+=line;}
+  pair((Number(item.qty)||0)+' × '+money(item.price),money((Number(item.qty)||0)*(Number(item.price)||0)));
+  y+=8;
+ }
+ rule();pair('Subtotal',money(t.subtotal));
+ if(Number(t.discount))pair('Diskon','− '+money(t.discount));
+ if(Number(t.tax))pair('Pajak',money(t.tax));
+ y+=8;ctx.fillStyle='#eef2ff';ctx.fillRect(pad,y,width-pad*2,78);
+ ctx.font='bold 32px Arial';ctx.fillStyle='#111827';ctx.textAlign='left';ctx.fillText('TOTAL BAYAR',pad+18,y+50);
+ ctx.font='bold 40px Arial';ctx.textAlign='right';ctx.fillText(money(t.total),width-pad-18,y+52);y+=112;
+ left('PEMBAYARAN',25,true);
+ for(const payment of payments)pair(payment.method||'Pembayaran',money(payment.amount));
+ pair('Pelanggan',t.customer||'Pelanggan Umum');
+ rule();center(settings.receiptFooter||'Terima kasih telah berbelanja',30,true);
+ center('Barang yang sudah dibeli mohon diperiksa kembali.',22,false,'#475569');
+ center('Bukti transaksi • '+(settings.storeName||'MAMBO KASIR'),20,false,'#64748b');
+ const blob=await new Promise(resolve=>ctxCanvas.toBlob(resolve,'image/png'));
+ if(!blob)throw new Error('Gambar struk gagal dibuat.');
+ const file=new File([blob],'Struk-'+(t.receipt||'MAMBO')+'.png',{type:'image/png'});
+ if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+  await navigator.share({files:[file],title:'e-Struk '+(t.receipt||''),text:'Bukti pembayaran '+(settings.storeName||'MAMBO KASIR')});
+  return;
+ }
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),30000);
+ toast('Gambar struk diunduh. Lampirkan gambar tersebut di WhatsApp.');
 }
 async function receiptPrint(t){
  const settings=(await all('settings'))[0]||{},width=Number(settings.receiptWidth)===80?80:58,paper=width===80?'72mm':'48mm',money=n=>rp(Number(n)||0);
