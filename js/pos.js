@@ -22,12 +22,38 @@ export async function mountPOS(root,user){
  dlg.querySelector('#confirm').onclick=async()=>{try{let pays=[],m=method.value;if(m==='Split Payment'){pays=[{method:'Tunai',amount:Number(amount.value)},{method:dlg.querySelector('#method2').value,amount:Number(dlg.querySelector('#split2').value||0)}];if(Number(dlg.querySelector('#split3').value)>0)pays.push({method:dlg.querySelector('#method3').value,amount:Number(dlg.querySelector('#split3').value)});if(pays.reduce((a,x)=>a+x.amount,0)<t.total)throw Error('Nominal split kurang');}else if(m==='Kasbon'){const c=cs.find(x=>x.id===customerId);if(!c)throw Error('Pilih pelanggan untuk kasbon');const ar=await all('receivables'),balance=ar.filter(x=>x.customerId===c.id&&x.status!=='paid').reduce((a,x)=>a+x.balance,0);if(!c.creditLimit||balance+t.total>c.creditLimit)throw Error('Limit kasbon tidak cukup atau belum diatur');pays=[{method:m,amount:t.total}];}else{if(Number(amount.value)<t.total)throw Error('Pembayaran kurang');pays=[{method:m,amount:Number(amount.value),reference:dlg.querySelector('#ref').value}];}
  const customer=cs.find(x=>x.id===customerId),id=uid(),receipt='MB-'+Date.now(),stamp=now(),items=cart.map(x=>({...x,cost:Number(x.cost??ps.find(p=>p.id===x.id)?.cost??0)}));await atomic(['products','transactions','movements','shifts','receivables'],stores=>{const reqs=items.map(item=>{const r=stores.products.get(item.id);r.onsuccess=()=>{const p=r.result;if(!p||p.stock<item.qty){try{stores.products.transaction.abort()}catch{}return;}p.stock-=item.qty;stores.products.put(p);stores.movements.put({id:uid(),productId:p.id,productName:p.name,type:'penjualan',delta:-item.qty,note:'Struk '+receipt,time:stamp});};});stores.transactions.put({id,receipt,userId:user.id,userName:user.name,shiftId:shift.id,customerId:customer?.id||null,customerName:customer?.name||'Pelanggan Umum',items,total:t.total,subtotal:t.sub,discount:t.d,tax:t.vat,payments:pays,time:stamp,status:'paid'});const sr=stores.shifts.get(shift.id);sr.onsuccess=()=>{const s=sr.result;if(s){s.sales=(s.sales||0)+t.total;s.cashSales=(s.cashSales||0)+pays.filter(x=>x.method==='Tunai').reduce((a,x)=>a+x.amount,0);stores.shifts.put(s)}};if(m==='Kasbon')stores.receivables.put({id:uid(),transactionId:id,customerId:customer.id,customerName:customer.name,amount:t.total,balance:t.total,status:'open',time:stamp});});dlg.remove();cart=[];toast('Transaksi tersimpan');mountPOS(root,user);
  const receiptData={receipt,items,total:t.total,subtotal:t.sub,discount:t.d,tax:t.vat,payments:pays,customer:customer?.name||'Pelanggan Umum',stamp};
- const done=document.createElement('div');done.className='modal-backdrop';done.innerHTML=`<section class="modal"><h2>Transaksi Berhasil</h2><p>Pembayaran ${rp(t.total)} sudah tersimpan.</p><p class="muted">Apakah Anda ingin mencetak struk?</p><div class="modal-actions"><button class="secondary" id="finishNoPrint">Selesai</button><button class="primary" id="printReceiptNow">Cetak Struk</button></div></section>`;document.body.append(done);
+ const done=document.createElement('div');done.className='modal-backdrop';done.innerHTML=`<section class="modal"><h2>Transaksi Berhasil</h2><p>Pembayaran ${rp(t.total)} sudah tersimpan.</p><p class="muted">Pilih tindakan berikut. Struk tidak dicetak otomatis.</p><div class="modal-actions"><button class="secondary" id="finishNoPrint">Selesai</button><button class="secondary" id="shareReceiptWA">Kirim e-Struk WA</button><button class="primary" id="printReceiptNow">Cetak / PDF</button></div></section>`;document.body.append(done);
  done.querySelector('#finishNoPrint').onclick=()=>done.remove();
  done.querySelector('#printReceiptNow').onclick=()=>{done.remove();receiptPrint(receiptData);};
+ done.querySelector('#shareReceiptWA').onclick=()=>shareReceiptWhatsApp(receiptData);
  }catch(err){dlg.querySelector('#payError').textContent=err.message||'Pembayaran gagal';}};
  };
  draw();drawCart();$('#scan').focus();window.onkeydown=e=>{if(e.key==='F1'){e.preventDefault();$('#scan')?.focus()}else if(e.key==='F2'){e.preventDefault();$('#hold')?.click()}else if(e.key==='F4'){e.preventDefault();$('#recall')?.click()}else if(e.key==='F8'){e.preventDefault();$('#customer')?.focus()}else if(e.key==='F9'){e.preventDefault();$('#discount')?.focus()}else if(e.key==='F12'){e.preventDefault();$('#pay')?.click()}};
+}
+
+function shareReceiptWhatsApp(t){
+ const settingsCache=t.storeName||'MAMBO KASIR';
+ const money=n=>rp(n);
+ const textLines=[
+  '*'+settingsCache+'*',
+  'e-STRUK / BUKTI PEMBAYARAN',
+  'No. Struk: '+t.receipt,
+  'Tanggal: '+t.stamp,
+  '--------------------------------',
+  ...(t.items||[]).map(x=>x.name+'\n'+x.qty+' x '+money(x.price)+' = '+money(x.price*x.qty)),
+  '--------------------------------',
+  'Subtotal: '+money(t.subtotal),
+  ...(t.discount?[('Diskon: -'+money(t.discount))]:[]),
+  ...(t.tax?[('Pajak: '+money(t.tax))]:[]),
+  '*TOTAL: '+money(t.total)+'*',
+  'Pembayaran:',
+  ...(t.payments||[]).map(x=>x.method+': '+money(x.amount)),
+  'Pelanggan: '+(t.customer||'Pelanggan Umum'),
+  '',
+  'Terima kasih telah berbelanja.'
+ ];
+ const url='https://wa.me/?text='+encodeURIComponent(textLines.join('\n'));
+ window.open(url,'_blank','noopener');
 }
 async function receiptPrint(t){
  const settings=(await all('settings'))[0]||{};
@@ -44,7 +70,7 @@ async function receiptPrint(t){
  .rule{border:0;border-top:1px dashed #000;margin:7px 0}.line,.detail{display:flex;justify-content:space-between;gap:8px}
  .item{margin:5px 0}.name{overflow-wrap:anywhere}.detail{margin-top:1px}.total{font-size:15px;font-weight:bold}
  .thanks{text-align:center;margin-top:10px;font-weight:bold}
- @page{margin:2mm;size:auto} @media print{body{width:${paper};margin:0;padding:0}button{display:none}}
+ @page{size:${width}mm auto;margin:0} @media print{html,body{width:${paper};min-width:${paper};margin:0;padding:0}body{font-size:13px}button{display:none}}
  </style></head><body>
  <h2>${esc(settings.storeName||'MAMBO KASIR')}</h2>
  ${settings.address?`<div class="center muted">${esc(settings.address)}</div>`:''}
