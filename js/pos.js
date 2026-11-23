@@ -77,7 +77,7 @@ async function shareReceiptWhatsApp(t){
  if(!blob)throw new Error('Gambar struk gagal dibuat.');
  const file=new File([blob],'Struk-'+(t.receipt||'MAMBO')+'.png',{type:'image/png'});
  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-  await navigator.share({files:[file],title:'e-Struk '+(t.receipt||''),text:'Bukti pembayaran '+(settings.storeName||'MAMBO KASIR')});
+  await navigator.share({files:[file]});
   return;
  }
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();
