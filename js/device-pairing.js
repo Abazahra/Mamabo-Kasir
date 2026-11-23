@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-import {replaceDeviceCatalog,all,remove,applyCloudRows} from './db.js?v=device-pair-2';
+import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=device-pair-2';
 const SUPABASE_URL='https://wtsheaowviaedwhyiwkk.supabase.co';
 const SUPABASE_KEY='sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
 const KEY='mambo_paired_device';
@@ -42,6 +42,25 @@ export async function loginDeviceStaff(username,pin){
 
 const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings'];
 const INITIAL_SYNC_KEY='mambo_device_initial_data_sync_v1';
+const LEGACY_CASHIER_IDS=new Set([
+ '1d25c016-9e7f-4890-9bdc-6f4d6b86c8f1',
+ 'a5bc3a4c-5b7b-4e23-ba97-976e7775b98d'
+]);
+const CURRENT_CASHIER={id:'7e9f4a2e-5999-4484-a3f4-f76e270e5cf9',name:'nizar'};
+function normalizeLegacyCashier(entity,row){
+ if(!['transactions','shifts'].includes(entity)||!row||!LEGACY_CASHIER_IDS.has(String(row.userId)))return row;
+ return {...row,userId:CURRENT_CASHIER.id,userName:CURRENT_CASHIER.name};
+}
+async function migrateLegacyCashierLocalData(){
+ for(const entity of ['transactions','shifts']){
+  const rows=await all(entity);
+  for(const row of rows){
+   const migrated=normalizeLegacyCashier(entity,row);
+   if(migrated!==row)await put(entity,migrated);
+  }
+ }
+}
+
 let deviceSyncBusy=false,deviceSyncTimer=null;
 async function deviceRpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
 export async function syncDeviceData(){
@@ -50,6 +69,8 @@ export async function syncDeviceData(){
  if(!saved?.token)return {skipped:true};
  deviceSyncBusy=true;
  try{
+  // Alihkan data lokal Kasir-1 sebelum push awal maupun antrean sinkronisasi.
+  await migrateLegacyCashierLocalData();
   if(localStorage.getItem(INITIAL_SYNC_KEY)!=='done'){
    // Migrasi awal bersifat insert-only: data lokal lama tidak menimpa record pusat yang sudah ada.
    for(const entity of SYNC_ENTITIES){
@@ -65,7 +86,7 @@ export async function syncDeviceData(){
   const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
   for(let i=0;i<queue.length;i+=300){
    const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.operation!=='delete')
-    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:x.payload||{}}));
+    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{})}));
    if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
    for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity)&&item.operation!=='delete')await remove('syncQueue',item.id);
   }
