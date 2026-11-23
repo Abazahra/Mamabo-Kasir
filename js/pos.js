@@ -105,7 +105,7 @@ function openEdit(tx,products,user,activeShift,privileged,refresh){
  draw();
  wrap.querySelector('#addEditLine').onclick=()=>{if(!products.length)return;lines.push({id:products[0].id,qty:1,price:Number(products[0].price)||0,cost:Number(products[0].cost)||0});draw();};
  wrap.querySelector('#editLines').onchange=e=>{const s=e.target.closest('[data-line-product]');if(s){const i=Number(s.dataset.lineProduct),p=products.find(x=>x.id===s.value);if(p)lines[i]={...lines[i],id:p.id,price:Number(p.price)||0,cost:Number(p.cost)||0};draw();}};
- wrap.querySelector('#editLines').oninput=e=>{const q=e.target.closest('[data-line-qty]');if(q){const i=Number(q.dataset.lineQty);lines[i].qty=Math.max(1,Math.floor(Number(q.value)||1));draw();}};
+ wrap.querySelector('#editLines').onchange=e=>{const q=e.target.closest('[data-line-qty]');if(q){const i=Number(q.dataset.lineQty);lines[i].qty=Math.max(1,Math.floor(Number(q.value)||1));draw();}};
  wrap.querySelector('#editLines').onclick=e=>{const b=e.target.closest('[data-line-remove]');if(b){lines.splice(Number(b.dataset.lineRemove),1);draw();}};
  wrap.querySelector('#cancelEdit').onclick=()=>wrap.remove();
  wrap.querySelector('#saveEdit').onclick=async()=>{
