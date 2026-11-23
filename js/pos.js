@@ -85,11 +85,11 @@ export async function mountTransactionHistory(root,user){
   const b=e.target.closest('button');if(!b)return;
   const tx=visible.find(t=>t.id===(b.dataset.detail||b.dataset.editTx));if(!tx)return;
   if(b.dataset.detail){const detail=document.createElement('div');detail.className='modal-backdrop';detail.innerHTML='<section class="modal"><h2>Detail '+esc(tx.receipt)+'</h2><p>'+esc(tx.time)+' · '+esc(tx.userName)+'</p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th>Jumlah</th></tr></thead><tbody>'+tx.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.price*i.qty)+'</td></tr>').join('')+'</tbody></table></div><h3>Total: '+money(tx.total)+'</h3><div class="modal-actions"><button class="secondary" id="closeDetail">Tutup</button></div></section>';document.body.append(detail);detail.querySelector('#closeDetail').onclick=()=>detail.remove();return;}
-  openEdit(tx,products,user,activeShift,privileged,draw);
+  openEdit(tx,products,user,activeShift,privileged,draw,root);
  };
 }
 
-function openEdit(tx,products,user,activeShift,privileged,refresh){
+function openEdit(tx,products,user,activeShift,privileged,refresh,root){
  if(!privileged&&(!activeShift||tx.shiftId!==activeShift.id||tx.userId!==user.id)){toast('Kasir hanya dapat mengedit transaksi pada shift aktif miliknya.');return;}
  const wrap=document.createElement('div');wrap.className='modal-backdrop';
  wrap.innerHTML='<section class="modal"><h2>Koreksi Transaksi '+esc(tx.receipt)+'</h2><p class="muted">Ubah produk atau jumlah. Stok dan total akan dihitung ulang, serta koreksi dicatat.</p><div id="editLines"></div><div class="actions"><button class="secondary" id="addEditLine">＋ Tambah Produk</button></div><div id="editTotal" class="grand-total"></div><p id="editError" class="error"></p><div class="modal-actions"><button class="secondary" id="cancelEdit">Batal</button><button class="primary" id="saveEdit">Simpan Koreksi</button></div></section>';
@@ -116,7 +116,8 @@ function openEdit(tx,products,user,activeShift,privileged,refresh){
   const newItems=lines.map(l=>{const p=products.find(x=>x.id===l.id);return{id:p.id,name:p.name,sku:p.sku,price:l.price,cost:l.cost,qty:l.qty};});
   const oldCash=(tx.payments||[]).filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
   let newPayments=(tx.payments||[]).map(p=>({...p}));
-  if(newPayments.length===1&&newPayments[0].method==='Tunai'&&Number(newPayments[0].amount||0)<total){err.textContent='Nominal tunai yang tercatat kurang dari total baru. Minta Owner/Supervisor melakukan koreksi pembayaran.';return;}\n  if(newPayments.length===1&&newPayments[0].method!=='Tunai')newPayments[0].amount=total;
+  if(newPayments.length===1&&newPayments[0].method==='Tunai'&&Number(newPayments[0].amount||0)<total){err.textContent='Nominal tunai yang tercatat kurang dari total baru. Minta Owner/Supervisor melakukan koreksi pembayaran.';return;}
+  if(newPayments.length===1&&newPayments[0].method!=='Tunai')newPayments[0].amount=total;
   else if(newPayments.length>1){const base=newPayments.reduce((a,p)=>a+Number(p.amount||0),0)||1;let assigned=0;newPayments=newPayments.map((p,i)=>{const amount=i===newPayments.length-1?total-assigned:Math.round(total*Number(p.amount||0)/base);assigned+=amount;return{...p,amount};});}
   const newCash=newPayments.filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
   const editRecord={at:now(),by:user.name,oldTotal:tx.total,newTotal:total,oldItems:tx.items,newItems};
