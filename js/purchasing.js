@@ -1,4 +1,4 @@
-import {all,put,remove,atomic,uid} from './db.js';
+import {all,put,remove,atomic,uid} from './db.js?v=operational-normalization-2';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), stamp=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function modal(title,body,save){const w=document.createElement('div');w.className='modal-backdrop';w.innerHTML='<section class="modal"><h2>'+title+'</h2>'+body+'<div class="modal-actions"><button class="secondary" id="cancel">Batal</button><button class="primary" id="save">Simpan</button></div><p class="error" id="err"></p></section>';document.body.append(w);w.querySelector('#cancel').onclick=()=>w.remove();w.querySelector('#save').onclick=async()=>{try{await save();w.remove();}catch(e){w.querySelector('#err').textContent=e.message||'Gagal menyimpan';}};}
