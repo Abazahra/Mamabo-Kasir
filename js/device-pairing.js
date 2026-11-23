@@ -40,7 +40,7 @@ export async function loginDeviceStaff(username,pin){
 }
 
 
-const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings'];
+const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings','operationalExpenses'];
 const INITIAL_SYNC_KEY='mambo_device_initial_data_sync_v1';
 const LEGACY_CASHIER_IDS=new Set([
  '1d25c016-9e7f-4890-9bdc-6f4d6b86c8f1',
