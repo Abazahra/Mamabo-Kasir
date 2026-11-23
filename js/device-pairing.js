@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-import {replaceDeviceCatalog} from './db.js?v=device-pair-1';
+import {replaceDeviceCatalog,all,remove,applyCloudRows} from './db.js?v=device-pair-2';
 const SUPABASE_URL='https://wtsheaowviaedwhyiwkk.supabase.co';
 const SUPABASE_KEY='sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
 const KEY='mambo_paired_device';
@@ -37,6 +37,55 @@ export async function loginDeviceStaff(username,pin){
  if(error)throw error;
  if(!data?.id||!data?.role)throw Error('Akun atau PIN tidak sesuai.');
  return {id:data.id,name:data.name,role:data.role,username:data.username,active:true};
+}
+
+
+const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings'];
+const INITIAL_SYNC_KEY='mambo_device_initial_data_sync_v1';
+let deviceSyncBusy=false,deviceSyncTimer=null;
+async function deviceRpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
+export async function syncDeviceData(){
+ if(deviceSyncBusy||!navigator.onLine)return {skipped:true};
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)return {skipped:true};
+ deviceSyncBusy=true;
+ try{
+  if(localStorage.getItem(INITIAL_SYNC_KEY)!=='done'){
+   // Migrasi awal bersifat insert-only: data lokal lama tidak menimpa record pusat yang sudah ada.
+   for(const entity of SYNC_ENTITIES){
+    const rows=await all(entity);
+    for(let i=0;i<rows.length;i+=300){
+     const batch=rows.slice(i,i+300).map(row=>({entity,record_id:String(row.id),payload:row}));
+     if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:true});
+    }
+   }
+   localStorage.setItem(INITIAL_SYNC_KEY,'done');
+  }
+  // Kirim perubahan terbaru dari antrean lokal.
+  const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
+  for(let i=0;i<queue.length;i+=300){
+   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.operation!=='delete')
+    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:x.payload||{}}));
+   if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
+   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity))await remove('syncQueue',item.id);
+  }
+  const rows=await deviceRpc('mambo_device_sync_pull',{p_device_token:saved.token});
+  const result=await applyCloudRows(Array.isArray(rows)?rows:[]);
+  window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:result}));
+  window.dispatchEvent(new CustomEvent('mambo-device-sync',{detail:{ok:true,applied:result.applied}}));
+  return result;
+ }catch(e){
+  console.warn('Sinkronisasi data perangkat:',e.message);
+  window.dispatchEvent(new CustomEvent('mambo-device-sync',{detail:{ok:false,error:e.message}}));
+  throw e;
+ }finally{deviceSyncBusy=false;}
+}
+export function startDeviceDataSync(){
+ if(deviceSyncTimer)return;
+ const tick=()=>syncDeviceData().catch(()=>{});
+ tick();
+ deviceSyncTimer=setInterval(tick,15000);
+ window.addEventListener('online',tick);
 }
 
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
