@@ -31,8 +31,9 @@ export async function mountPOS(root,user){
  draw();drawCart();$('#scan').focus();window.onkeydown=e=>{if(e.key==='F1'){e.preventDefault();$('#scan')?.focus()}else if(e.key==='F2'){e.preventDefault();$('#hold')?.click()}else if(e.key==='F4'){e.preventDefault();$('#recall')?.click()}else if(e.key==='F8'){e.preventDefault();$('#customer')?.focus()}else if(e.key==='F9'){e.preventDefault();$('#discount')?.focus()}else if(e.key==='F12'){e.preventDefault();$('#pay')?.click()}};
 }
 
-function shareReceiptWhatsApp(t){
- const settingsCache=t.storeName||'MAMBO KASIR';
+async function shareReceiptWhatsApp(t){
+ const settings=(await all('settings'))[0]||{};
+ const settingsCache=settings.storeName||'MAMBO KASIR';
  const money=n=>rp(n);
  const textLines=[
   '*'+settingsCache+'*',
