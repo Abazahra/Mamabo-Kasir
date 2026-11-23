@@ -42,7 +42,7 @@ begin
  if p_pin !~ '^\d{4,6}$' then raise exception 'PIN harus 4–6 angka.'; end if;
  salt:=gen_random_uuid()::text;
  insert into public.mambo_staff_accounts(store_id,username,display_name,app_role,pin_salt,pin_hash)
- values(p_store_id,trim(p_username),trim(p_display_name),p_app_role,salt,encode(digest(salt||':'||p_pin,'sha256'),'hex'))
+ values(p_store_id,trim(p_username),trim(p_display_name),p_app_role,salt,crypt(p_pin,gen_salt('bf',10)))
  returning id into new_id;
  return jsonb_build_object('id',new_id);
 end $$;
@@ -100,7 +100,7 @@ begin
  if v_store is null then raise exception 'Perangkat tidak valid atau telah dicabut.'; end if;
  select * into a from public.mambo_staff_accounts
  where store_id=v_store and lower(username)=lower(trim(coalesce(p_username,''))) and active=true;
- if not found or a.pin_hash<>encode(digest(a.pin_salt||':'||coalesce(p_pin,''),'sha256'),'hex') then
+ if not found or a.pin_hash<>crypt(coalesce(p_pin,''),a.pin_hash) then
   raise exception 'Akun atau PIN tidak sesuai.';
  end if;
  update public.mambo_cashier_devices set last_seen_at=now()
