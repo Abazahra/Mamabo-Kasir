@@ -67,3 +67,51 @@ export async function replaceDeviceCatalog(products,categories){
   tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Pembaruan katalog dibatalkan'));
  });
 }
+
+
+export async function discardVerifiedDemoRecords(expected){
+ const db=await openDB();
+ const entities=[...new Set((expected||[]).map(x=>x.entity))];
+ if(!entities.length||entities.some(x=>!['products','customers','suppliers','auditLogs'].includes(x)))throw Error('Daftar data uji tidak valid.');
+ const names=[...entities,'syncQueue'];
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(names,'readwrite'),q=tx.objectStore('syncQueue');
+  let failure=null,result=null;
+  const req=q.getAll();
+  req.onsuccess=()=>{
+   try{
+    const queue=req.result||[];
+    const targets=[];
+    for(const item of expected){
+     const matches=queue.filter(x=>x.entity===item.entity&&String(x.recordId)===String(item.recordId));
+     if(matches.length!==1||matches[0].operation!=='upsert')throw Error('Antrean '+item.entity+' '+item.recordId+' berubah sejak laporan dibuat. Tidak ada data yang dibersihkan.');
+     const queued=matches[0];
+     if(item.entity==='products'&&String(queued.payload?.sku||'')!==String(item.sku))throw Error('SKU produk tidak cocok dengan laporan. Pembersihan dibatalkan.');
+     targets.push({item,queued});
+    }
+    const productChecks=targets.filter(x=>x.item.entity==='products');
+    let checked=0;
+    const apply=()=>{
+     for(const {item,queued} of targets){
+      tx.objectStore(item.entity).delete(item.recordId);
+      q.delete(queued.id);
+     }
+     result={removed:targets.length,counts:targets.reduce((o,x)=>(o[x.item.entity]=(o[x.item.entity]||0)+1,o),{})};
+    };
+    if(!productChecks.length){apply();return;}
+    for(const {item} of productChecks){
+     const getReq=tx.objectStore('products').get(item.recordId);
+     getReq.onsuccess=()=>{
+      if(!getReq.result||String(getReq.result.sku||'')!==String(item.sku)){failure=new Error('Data produk lokal tidak cocok dengan laporan untuk SKU '+item.sku+'. Pembersihan dibatalkan.');try{tx.abort();}catch{}return;}
+      checked++;if(checked===productChecks.length)apply();
+     };
+     getReq.onerror=()=>{failure=getReq.error||new Error('Gagal memeriksa produk lokal.');try{tx.abort();}catch{}};
+    }
+   }catch(e){failure=e;try{tx.abort();}catch{}}
+  };
+  req.onerror=()=>{failure=req.error||new Error('Gagal membaca antrean.');try{tx.abort();}catch{}};
+  tx.oncomplete=()=>resolve(result);
+  tx.onerror=()=>reject(failure||tx.error||new Error('Pembersihan gagal.'));
+  tx.onabort=()=>reject(failure||tx.error||new Error('Pembersihan dibatalkan.'));
+ });
+}
