@@ -4,7 +4,7 @@ import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-im
 import {mountPurchasing} from './purchasing.js';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=owner-bootstrap-1';
 import {startCloudSync} from './cloud-sync.js?v=sync-pull-2';
-import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff,startDeviceDataSync} from './device-pairing.js?v=device-data-sync-2';
+import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff,startDeviceDataSync} from './device-pairing.js?v=legacy-cashier-migration-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=staff-1';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
 let user=null,page='dashboard',products=[],categories=[],customers=[],suppliers=[],movements=[];
