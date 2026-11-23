@@ -62,7 +62,7 @@ create table if not exists public.mambo_audit_logs (
 );
 create table if not exists public.mambo_sync_records (
  store_id uuid not null references public.mambo_stores(id) on delete cascade,
- entity text not null check (entity in ('products','suppliers','movements','transactions','shifts','auditLogs','categories','customers','opnames','settings','receivables','promos','returns','purchases','payables','supplierPayments')),
+ entity text not null check (entity in ('products','suppliers','movements','transactions','shifts','auditLogs','categories','customers','opnames','settings','receivables','promos','returns','purchases','payables','supplierPayments','operationalExpenses')),
  record_id text not null, payload jsonb not null default '{}'::jsonb,
  updated_at timestamptz not null default now(), deleted boolean not null default false,
  primary key(store_id,entity,record_id)
@@ -196,7 +196,7 @@ create policy sync_records_read_member on public.mambo_sync_records for select u
 create policy sync_records_insert_member on public.mambo_sync_records for insert with check (
  public.mambo_is_member(store_id) and (
   (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
-  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments') and public.mambo_is_member(store_id))
+  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments','operationalExpenses') and public.mambo_is_member(store_id))
  ));
 create policy sync_records_update_member on public.mambo_sync_records for update using (
  public.mambo_is_member(store_id) and (
