@@ -66,3 +66,86 @@ export async function mountShift(root,user){const shifts=await all('shifts'),s=s
  for(const [id,field] of [['cashIn','cashIn'],['cashOut','cashOut']])$('#'+id).onclick=async()=>{const amount=Number(prompt('Nominal (Rp)'));if(!Number.isFinite(amount)||amount<=0)return toast('Nominal tidak valid');const note=prompt('Keterangan wajib diisi');if(!note?.trim())return toast('Keterangan wajib diisi');await put('shifts',{...s,[field]:(s[field]||0)+amount,entries:[...(s.entries||[]),{type:field,amount,note,time:now()}]});mountShift(root,user)};
  $('#close').onclick=async()=>{const counted=Number($('#counted').value);if(!Number.isFinite(counted)||counted<0)return toast('Isi jumlah uang fisik');const closed={...s,status:'closed',countedCash:counted,expectedCash:expected,difference:counted-expected,closedAt:now()};await put('shifts',closed);$('#summary').innerHTML=`<h2>Ringkasan Tutup Shift</h2><p>Kas sistem: ${rp(expected)}</p><p>Kas fisik: ${rp(counted)}</p><h2>Selisih: ${rp(counted-expected)}</h2><p>Ditutup: ${closed.closedAt}</p>`;toast('Shift ditutup')};
 }
+
+
+export async function mountTransactionHistory(root,user){
+ const [transactions,products,shifts,receivables]=await Promise.all(['transactions','products','shifts','receivables'].map(all));
+ const activeShift=shifts.find(s=>s.userId===user.id&&s.status==='open');
+ const privileged=user.role==='owner'||user.role==='supervisor';
+ const visible=transactions.filter(t=>t.status!=='void'&&(privileged||(activeShift&&t.userId===user.id&&t.shiftId===activeShift.id))).sort((a,b)=>String(b.time||'').localeCompare(String(a.time||'')));
+ const money=n=>rp(n);
+ root.innerHTML='<h1>Riwayat Transaksi</h1><p class="sub">'+(privileged?'Riwayat transaksi seluruh kasir.':'Transaksi Anda pada shift yang masih terbuka.')+'</p><section class="panel"><div class="toolbar"><input id="historySearch" placeholder="Cari nomor struk atau pelanggan"><input id="historyDate" type="date"></div><div id="historyTable"></div></section>';
+ const draw=()=>{
+  const q=$('#historySearch').value.toLowerCase(),date=$('#historyDate').value;
+  const rows=visible.filter(t=>(!q||[t.receipt,t.customerName,t.userName].join(' ').toLowerCase().includes(q))&&(!date||String(t.time||'').slice(0,10)===date));
+  $('#historyTable').innerHTML=rows.length?'<div class="table-wrap"><table><thead><tr><th>Waktu</th><th>No. Struk</th><th>Kasir</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody>'+rows.map(t=>'<tr><td>'+esc(t.time)+'</td><td>'+esc(t.receipt)+'</td><td>'+esc(t.userName)+'</td><td>'+money(t.total)+'</td><td><span class="pill">'+(t.status==='paid'?'Lunas':esc(t.status))+'</span></td><td><button class="secondary" data-detail="'+t.id+'">Detail</button> '+((privileged||(activeShift&&t.shiftId===activeShift.id&&t.userId===user.id))?'<button class="primary" data-edit-tx="'+t.id+'">Edit</button>':'')+'</td></tr>').join('')+'</tbody></table></div>':'<div class="empty">Belum ada transaksi pada cakupan ini.</div>';
+ };
+ draw();$('#historySearch').oninput=draw;$('#historyDate').onchange=draw;
+ $('#historyTable').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const tx=visible.find(t=>t.id===(b.dataset.detail||b.dataset.editTx));if(!tx)return;
+  if(b.dataset.detail){const detail=document.createElement('div');detail.className='modal-backdrop';detail.innerHTML='<section class="modal"><h2>Detail '+esc(tx.receipt)+'</h2><p>'+esc(tx.time)+' · '+esc(tx.userName)+'</p><div class="table-wrap"><table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th>Jumlah</th></tr></thead><tbody>'+tx.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+i.qty+'</td><td>'+money(i.price)+'</td><td>'+money(i.price*i.qty)+'</td></tr>').join('')+'</tbody></table></div><h3>Total: '+money(tx.total)+'</h3><div class="modal-actions"><button class="secondary" id="closeDetail">Tutup</button></div></section>';document.body.append(detail);detail.querySelector('#closeDetail').onclick=()=>detail.remove();return;}
+  openEdit(tx,products,user,activeShift,privileged,draw);
+ };
+}
+
+function openEdit(tx,products,user,activeShift,privileged,refresh){
+ if(!privileged&&(!activeShift||tx.shiftId!==activeShift.id||tx.userId!==user.id)){toast('Kasir hanya dapat mengedit transaksi pada shift aktif miliknya.');return;}
+ const wrap=document.createElement('div');wrap.className='modal-backdrop';
+ wrap.innerHTML='<section class="modal"><h2>Koreksi Transaksi '+esc(tx.receipt)+'</h2><p class="muted">Ubah produk atau jumlah. Stok dan total akan dihitung ulang, serta koreksi dicatat.</p><div id="editLines"></div><div class="actions"><button class="secondary" id="addEditLine">＋ Tambah Produk</button></div><div id="editTotal" class="grand-total"></div><p id="editError" class="error"></p><div class="modal-actions"><button class="secondary" id="cancelEdit">Batal</button><button class="primary" id="saveEdit">Simpan Koreksi</button></div></section>';
+ document.body.append(wrap);
+ let lines=tx.items.map(i=>({id:i.id,qty:Number(i.qty)||1,price:Number(i.price)||0,cost:Number(i.cost)||0}));
+ const options=()=>products.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' · '+esc(p.sku||'')+'</option>').join('');
+ const draw=()=>{
+  wrap.querySelector('#editLines').innerHTML=lines.map((line,i)=>'<div class="form-grid" style="align-items:end;margin:10px 0"><div class="field wide"><label>Produk</label><select data-line-product="'+i+'">'+options()+'</select></div><div class="field"><label>Jumlah</label><input type="number" min="1" step="1" value="'+line.qty+'" data-line-qty="'+i+'"></div><div class="field"><button class="danger" data-line-remove="'+i+'">Hapus baris</button></div></div>').join('');
+  lines.forEach((line,i)=>{const s=wrap.querySelector('[data-line-product="'+i+'"]');if(s)s.value=line.id;});
+  const sub=lines.reduce((a,l)=>a+l.price*l.qty,0),discount=Math.min(Number(tx.discount)||0,sub),rate=Number(tx.subtotal)>0?Number(tx.tax||0)/Math.max(1,Number(tx.subtotal)-Number(tx.discount||0)):0,tax=Number(tx.tax)?Math.round((sub-discount)*rate):0,rounding=Number(tx.total)-Math.max(0,Number(tx.subtotal)-Number(tx.discount||0)+Number(tx.tax||0)),total=Math.max(0,sub-discount+tax+rounding);
+  wrap.querySelector('#editTotal').textContent='Perkiraan total: '+rp(total);
+ };
+ draw();
+ wrap.querySelector('#addEditLine').onclick=()=>{if(!products.length)return;lines.push({id:products[0].id,qty:1,price:Number(products[0].price)||0,cost:Number(products[0].cost)||0});draw();};
+ wrap.querySelector('#editLines').onchange=e=>{const s=e.target.closest('[data-line-product]');if(s){const i=Number(s.dataset.lineProduct),p=products.find(x=>x.id===s.value);if(p)lines[i]={...lines[i],id:p.id,price:Number(p.price)||0,cost:Number(p.cost)||0};draw();}};
+ wrap.querySelector('#editLines').oninput=e=>{const q=e.target.closest('[data-line-qty]');if(q){const i=Number(q.dataset.lineQty);lines[i].qty=Math.max(1,Math.floor(Number(q.value)||1));draw();}};
+ wrap.querySelector('#editLines').onclick=e=>{const b=e.target.closest('[data-line-remove]');if(b){lines.splice(Number(b.dataset.lineRemove),1);draw();}};
+ wrap.querySelector('#cancelEdit').onclick=()=>wrap.remove();
+ wrap.querySelector('#saveEdit').onclick=async()=>{
+  const err=wrap.querySelector('#editError');err.textContent='';
+  if(!lines.length){err.textContent='Transaksi harus memiliki minimal satu produk.';return;}
+  const latestShifts=await all('shifts'),currentShift=latestShifts.find(s=>s.id===tx.shiftId);
+  if(!privileged&&(!currentShift||currentShift.status!=='open'||currentShift.id!==activeShift?.id)){err.textContent='Shift sudah ditutup. Kasir tidak dapat mengedit transaksi ini.';return;}
+  const sub=lines.reduce((a,l)=>a+l.price*l.qty,0),discount=Math.min(Number(tx.discount)||0,sub),rate=Number(tx.subtotal)>0?Number(tx.tax||0)/Math.max(1,Number(tx.subtotal)-Number(tx.discount||0)):0,tax=Number(tx.tax)?Math.round((sub-discount)*rate):0,rounding=Number(tx.total)-Math.max(0,Number(tx.subtotal)-Number(tx.discount||0)+Number(tx.tax||0)),total=Math.max(0,sub-discount+tax+rounding);
+  const newItems=lines.map(l=>{const p=products.find(x=>x.id===l.id);return{id:p.id,name:p.name,sku:p.sku,price:l.price,cost:l.cost,qty:l.qty};});
+  const oldCash=(tx.payments||[]).filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
+  let newPayments=(tx.payments||[]).map(p=>({...p}));
+  if(newPayments.length===1&&newPayments[0].method!=='Tunai')newPayments[0].amount=total;
+  else if(newPayments.length>1){const base=newPayments.reduce((a,p)=>a+Number(p.amount||0),0)||1;let assigned=0;newPayments=newPayments.map((p,i)=>{const amount=i===newPayments.length-1?total-assigned:Math.round(total*Number(p.amount||0)/base);assigned+=amount;return{...p,amount};});}
+  const newCash=newPayments.filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
+  const editRecord={at:now(),by:user.name,oldTotal:tx.total,newTotal:total,oldItems:tx.items,newItems};
+  try{
+   await atomic(['products','transactions','movements','shifts','receivables'],stores=>{
+    const productReq=stores.products.getAll(),txReq=stores.transactions.get(tx.id),shiftReq=stores.shifts.get(tx.shiftId);
+    let receivableReq=null;
+    if((tx.payments||[]).some(p=>p.method==='Kasbon'))receivableReq=stores.receivables.getAll();
+    let ready=0,failed=null;const expected=receivableReq?4:3;
+    const finish=()=>{
+     if(failed)return;
+     if(++ready<expected)return;
+     const current=txReq.result,s=shiftReq.result,allProducts=productReq.result||[];
+     if(!current||current.status!=='paid'){failed=new Error('Transaksi tidak ditemukan atau tidak dapat dikoreksi.');return;}
+     if(!privileged&&(!s||s.status!=='open'||s.id!==activeShift?.id)){failed=new Error('Shift sudah ditutup.');return;}
+     const delta=new Map();
+     for(const item of current.items||[])delta.set(String(item.id),(delta.get(String(item.id))||0)+Number(item.qty||0));
+     for(const item of newItems)delta.set(String(item.id),(delta.get(String(item.id))||0)-Number(item.qty||0));
+     for(const [id,change] of delta){const p=allProducts.find(x=>String(x.id)===id);if(!p){failed=new Error('Produk '+id+' tidak ditemukan.');return;}if(Number(p.stock||0)+change<0){failed=new Error('Stok '+p.name+' tidak mencukupi untuk koreksi.');return;}}
+     for(const [id,change] of delta){if(!change)continue;const p=allProducts.find(x=>String(x.id)===id);p.stock=Number(p.stock||0)+change;stores.products.put(p);stores.movements.put({id:uid(),productId:p.id,productName:p.name,type:'koreksi_penjualan',delta:change,note:'Koreksi struk '+current.receipt+' oleh '+user.name,time:now()});}
+     if(s){s.sales=Number(s.sales||0)+(total-Number(current.total||0));s.cashSales=Number(s.cashSales||0)+(newCash-oldCash);stores.shifts.put(s);}
+     const updated={...current,items:newItems,subtotal:sub,discount,tax,total,payments:newPayments,editedAt:now(),editedBy:user.name,editHistory:[...(current.editHistory||[]),editRecord]};
+     stores.transactions.put(updated);
+     if(receivableReq){const ars=receivableReq.result||[],ar=ars.find(x=>x.transactionId===current.id);if(ar){const change=total-Number(current.total||0);stores.receivables.put({...ar,amount:total,balance:Math.max(0,Number(ar.balance||0)+change),lastEditedAt:now()});}}
+    };
+    for(const req of [productReq,txReq,shiftReq,...(receivableReq?[receivableReq]:[])]){req.onsuccess=finish;req.onerror=()=>{failed=req.error;};}
+   });
+   wrap.remove();toast('Koreksi transaksi tersimpan.');await mountTransactionHistory(root,user);
+  }catch(e){err.textContent=e.message||'Koreksi gagal disimpan.';}
+ };
+}
