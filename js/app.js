@@ -1,6 +1,6 @@
 import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords} from './db.js?v=demo-clean-safe-1';
 import {createUser,login,can,roleName} from './auth.js?v=transactions-3';
-import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-image-3';
+import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-hpp-1';
 import {mountPurchasing} from './purchasing.js';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=queue-export-1';
 import {startCloudSync,cloudStatus,syncNow} from './cloud-sync.js?v=sync-pull-3';
