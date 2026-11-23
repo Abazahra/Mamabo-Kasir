@@ -3,7 +3,7 @@ import {createUser,login,can,roleName} from './auth.js?v=transactions-3';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-image-3';
 import {mountPurchasing} from './purchasing.js';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=device-pair-1';
-import {startCloudSync} from './cloud-sync.js?v=sync-pull-1';
+import {startCloudSync} from './cloud-sync.js?v=sync-pull-2';
 import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff} from './device-pairing.js?v=device-pair-2';
 import {mountStaffAccounts} from './staff-accounts.js?v=staff-1';
 const $=s=>document.querySelector(s), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
