@@ -123,27 +123,27 @@ function openEdit(tx,products,user,activeShift,privileged,refresh){
   const editRecord={at:now(),by:user.name,oldTotal:tx.total,newTotal:total,oldItems:tx.items,newItems};
   try{
    await atomic(['products','transactions','movements','shifts','receivables'],stores=>{
-    const productReq=stores.products.getAll(),txReq=stores.transactions.get(tx.id),shiftReq=stores.shifts.get(tx.shiftId);
+    const productReq=stores.products.getAll(),txReq=stores.transactions.get(tx.id),shiftReq=tx.shiftId?stores.shifts.get(tx.shiftId):null;
     let receivableReq=null;
     if((tx.payments||[]).some(p=>p.method==='Kasbon'))receivableReq=stores.receivables.getAll();
-    let ready=0,failed=null;const expected=receivableReq?4:3;
+    let ready=0,failed=null;const reqs=[productReq,txReq,...(shiftReq?[shiftReq]:[]),...(receivableReq?[receivableReq]:[])];const expected=reqs.length;
     const finish=()=>{
      if(failed)return;
      if(++ready<expected)return;
-     const current=txReq.result,s=shiftReq.result,allProducts=productReq.result||[];
-     if(!current||current.status!=='paid'){failed=new Error('Transaksi tidak ditemukan atau tidak dapat dikoreksi.');return;}
-     if(!privileged&&(!s||s.status!=='open'||s.id!==activeShift?.id)){failed=new Error('Shift sudah ditutup.');return;}
+     const current=txReq.result,s=shiftReq?.result,allProducts=productReq.result||[];
+     if(!current||current.status!=='paid'){failed=new Error('Transaksi tidak ditemukan atau tidak dapat dikoreksi.');stores.products.transaction.abort();return;}
+     if(!privileged&&(!s||s.status!=='open'||s.id!==activeShift?.id)){failed=new Error('Shift sudah ditutup.');stores.products.transaction.abort();return;}
      const delta=new Map();
      for(const item of current.items||[])delta.set(String(item.id),(delta.get(String(item.id))||0)+Number(item.qty||0));
      for(const item of newItems)delta.set(String(item.id),(delta.get(String(item.id))||0)-Number(item.qty||0));
-     for(const [id,change] of delta){const p=allProducts.find(x=>String(x.id)===id);if(!p){failed=new Error('Produk '+id+' tidak ditemukan.');return;}if(Number(p.stock||0)+change<0){failed=new Error('Stok '+p.name+' tidak mencukupi untuk koreksi.');return;}}
+     for(const [id,change] of delta){const p=allProducts.find(x=>String(x.id)===id);if(!p){failed=new Error('Produk '+id+' tidak ditemukan.');stores.products.transaction.abort();return;}if(Number(p.stock||0)+change<0){failed=new Error('Stok '+p.name+' tidak mencukupi untuk koreksi.');stores.products.transaction.abort();return;}}
      for(const [id,change] of delta){if(!change)continue;const p=allProducts.find(x=>String(x.id)===id);p.stock=Number(p.stock||0)+change;stores.products.put(p);stores.movements.put({id:uid(),productId:p.id,productName:p.name,type:'koreksi_penjualan',delta:change,note:'Koreksi struk '+current.receipt+' oleh '+user.name,time:now()});}
      if(s){s.sales=Number(s.sales||0)+(total-Number(current.total||0));s.cashSales=Number(s.cashSales||0)+(newCash-oldCash);stores.shifts.put(s);}
      const updated={...current,items:newItems,subtotal:sub,discount,tax,total,payments:newPayments,editedAt:now(),editedBy:user.name,editHistory:[...(current.editHistory||[]),editRecord]};
      stores.transactions.put(updated);
      if(receivableReq){const ars=receivableReq.result||[],ar=ars.find(x=>x.transactionId===current.id);if(ar){const change=total-Number(current.total||0);stores.receivables.put({...ar,amount:total,balance:Math.max(0,Number(ar.balance||0)+change),lastEditedAt:now()});}}
     };
-    for(const req of [productReq,txReq,shiftReq,...(receivableReq?[receivableReq]:[])]){req.onsuccess=finish;req.onerror=()=>{failed=req.error;};}
+    for(const req of reqs){req.onsuccess=finish;req.onerror=()=>{failed=req.error;try{stores.products.transaction.abort();}catch{}};}
    });
    wrap.remove();toast('Koreksi transaksi tersimpan.');await mountTransactionHistory(root,user);
   }catch(e){err.textContent=e.message||'Koreksi gagal disimpan.';}
