@@ -22,6 +22,23 @@ export async function syncDeviceCatalog(){
  localStorage.setItem(KEY,JSON.stringify({...saved,lastSyncAt:new Date().toISOString()}));
  return result;
 }
+
+export async function listDeviceStaff(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
+ const {data,error}=await client.rpc('mambo_device_staff_list',{p_device_token:saved.token});
+ if(error)throw error;
+ return Array.isArray(data)?data:[];
+}
+export async function loginDeviceStaff(username,pin){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
+ const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin});
+ if(error)throw error;
+ if(!data?.id||!data?.role)throw Error('Akun atau PIN tidak sesuai.');
+ return {id:data.id,name:data.name,role:data.role,username:data.username,active:true};
+}
+
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
 document.addEventListener('DOMContentLoaded',()=>{
  const btn=$('#pairDeviceBtn'),code=$('#pairDeviceCode'),msg=$('#pairDeviceMessage');
