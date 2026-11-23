@@ -14,16 +14,16 @@ async function findProductSkuConflicts(){
  const localProducts=await all('products');
  let page=0,remoteProducts=[];
  while(true){
-  const {data,error}=await client.from('mambo_sync_records').select('record_id,payload,deleted').eq('store_id',storeId).eq('entity','products').range(page*500,page*500+499);
+  const {data,error}=await client.from('mambo_products').select('id,sku,name').eq('store_id',storeId).range(page*500,page*500+499);
   if(error)throw error;
   remoteProducts=remoteProducts.concat(data||[]);
   if(!data||data.length<500)break;
   page++;
  }
  const remoteBySku=new Map();
- for(const row of remoteProducts){if(row.deleted)continue;const sku=String(row.payload?.sku||'').trim().toLowerCase();if(sku)remoteBySku.set(sku,row);}
+ for(const row of remoteProducts){const sku=String(row.sku||'').trim().toLowerCase();if(sku)remoteBySku.set(sku,row);}
  const conflicts=[];
- for(const product of localProducts){const sku=String(product.sku||'').trim().toLowerCase();if(!sku)continue;const remote=remoteBySku.get(sku);if(remote&&String(remote.record_id)!==String(product.id))conflicts.push({sku:product.sku,localName:product.name||'(tanpa nama)',remoteName:remote.payload?.name||'(tanpa nama)',localId:product.id,remoteId:remote.record_id});}
+ for(const product of localProducts){const sku=String(product.sku||'').trim().toLowerCase();if(!sku)continue;const remote=remoteBySku.get(sku);if(remote&&String(remote.id)!==String(product.id))conflicts.push({sku:product.sku,localName:product.name||'(tanpa nama)',remoteName:remote.name||'(tanpa nama)',localId:product.id,remoteId:remote.id});}
  return conflicts;
 }
 export async function syncNow(){if(busy)return syncPromise||{ok:false,error:'Sinkronisasi sedang berjalan.'};if(!navigator.onLine)return {ok:false,error:'Perangkat sedang offline.'};if(!client||!session||!storeId){status('offline');const el=document.querySelector('#syncStatus');if(el)el.title='Internet tersedia; konfigurasi/login Supabase belum aktif.';return {ok:false,error:'Sesi Supabase atau Store ID belum aktif.'};}busy=true;status('syncing');syncPromise=(async()=>{try{const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);const conflicts=await findProductSkuConflicts();if(conflicts.length){const detail=conflicts.slice(0,8).map(x=>'SKU '+x.sku+': laptop "'+x.localName+'" ↔ pusat "'+x.remoteName+'"').join('; ');const more=conflicts.length>8?' (dan '+(conflicts.length-8)+' benturan lainnya)':'';status('offline');return {ok:false,error:'Sinkronisasi dihentikan demi keamanan. Ditemukan '+conflicts.length+' SKU produk yang bertabrakan: '+detail+more+'. Antrean lokal tidak dikirim atau dihapus.'};}let pushed=0;for(const item of queue){if(!ENTITIES.has(item.entity)){await remove('syncQueue',item.id);continue;}const row={store_id:storeId,entity:item.entity,record_id:String(item.recordId),payload:item.payload||{},deleted:item.operation==='delete',updated_at:new Date().toISOString()};const {error}=await client.from('mambo_sync_records').upsert(row,{onConflict:'store_id,entity,record_id'});if(error)throw error;await remove('syncQueue',item.id);pushed++;notifyQueue();}let page=0,allRows=[];while(true){const {data,error}=await client.from('mambo_sync_records').select('entity,record_id,payload,deleted').eq('store_id',storeId).range(page*500,page*500+499);if(error)throw error;allRows=allRows.concat(data||[]);if(!data||data.length<500)break;page++;}const result=await applyCloudRows(allRows);status('online');notifyQueue();window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:result}));return {ok:true,pushed,pulled:allRows.length,applied:result.applied,skipped:result.skipped,pending:await pendingSyncCount()};}catch(e){console.warn('Supabase sync:',e.message);status('offline');return {ok:false,error:e.message||String(e)};}finally{busy=false;syncPromise=null;}})();return await syncPromise;}
