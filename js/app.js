@@ -3,7 +3,7 @@ import {createUser,login,can,roleName} from './auth.js?v=transactions-3';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=receipt-image-3';
 import {mountPurchasing} from './purchasing.js';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=dashboard-date-2';
-import {startCloudSync,cloudStatus} from './cloud-sync.js?v=sync-pull-2';
+import {startCloudSync,cloudStatus} from './cloud-sync.js?v=sync-pull-3';
 import {devicePaired,syncDeviceCatalog,listDeviceStaff,loginDeviceStaff,startDeviceDataSync} from './device-pairing.js?v=legacy-cashier-migration-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=staff-1';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
