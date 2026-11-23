@@ -72,7 +72,7 @@ export async function mountTransactionHistory(root,user){
  const [transactions,products,shifts,receivables]=await Promise.all(['transactions','products','shifts','receivables'].map(all));
  const activeShift=shifts.find(s=>s.userId===user.id&&s.status==='open');
  const privileged=user.role==='owner'||user.role==='supervisor';
- const visible=transactions.filter(t=>t.status!=='void'&&(privileged||(activeShift&&t.userId===user.id&&t.shiftId===activeShift.id))).sort((a,b)=>String(b.time||'').localeCompare(String(a.time||'')));
+ const visible=transactions.filter(t=>t.status!=='void'&&(privileged||t.userId===user.id)).sort((a,b)=>String(b.time||'').localeCompare(String(a.time||'')));
  const money=n=>rp(n);
  root.innerHTML='<h1>Riwayat Transaksi</h1><p class="sub">'+(privileged?'Riwayat transaksi seluruh kasir.':'Transaksi Anda pada shift yang masih terbuka.')+'</p><section class="panel"><div class="toolbar"><input id="historySearch" placeholder="Cari nomor struk atau pelanggan"><input id="historyDate" type="date"></div><div id="historyTable"></div></section>';
  const draw=()=>{
@@ -117,7 +117,7 @@ function openEdit(tx,products,user,activeShift,privileged,refresh){
   const newItems=lines.map(l=>{const p=products.find(x=>x.id===l.id);return{id:p.id,name:p.name,sku:p.sku,price:l.price,cost:l.cost,qty:l.qty};});
   const oldCash=(tx.payments||[]).filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
   let newPayments=(tx.payments||[]).map(p=>({...p}));
-  if(newPayments.length===1&&newPayments[0].method!=='Tunai')newPayments[0].amount=total;
+  if(newPayments.length===1&&newPayments[0].method==='Tunai'&&Number(newPayments[0].amount||0)<total){err.textContent='Nominal tunai yang tercatat kurang dari total baru. Minta Owner/Supervisor melakukan koreksi pembayaran.';return;}\n  if(newPayments.length===1&&newPayments[0].method!=='Tunai')newPayments[0].amount=total;
   else if(newPayments.length>1){const base=newPayments.reduce((a,p)=>a+Number(p.amount||0),0)||1;let assigned=0;newPayments=newPayments.map((p,i)=>{const amount=i===newPayments.length-1?total-assigned:Math.round(total*Number(p.amount||0)/base);assigned+=amount;return{...p,amount};});}
   const newCash=newPayments.filter(p=>p.method==='Tunai').reduce((a,p)=>a+Number(p.amount||0),0);
   const editRecord={at:now(),by:user.name,oldTotal:tx.total,newTotal:total,oldItems:tx.items,newItems};
