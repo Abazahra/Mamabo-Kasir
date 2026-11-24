@@ -66,6 +66,26 @@ export async function createCashierPairCode(label='Perangkat Kasir'){
 }
 
 
+export async function sharedDrawerSnapshot(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_snapshot',{p_store_id:storeId});
+ if(error)throw error;return data;
+}
+export async function openSharedDrawer(openingCash,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_open',{p_store_id:storeId,p_opening_cash:Number(openingCash),p_actor_name:actorName});
+ if(error)throw error;return data;
+}
+export async function closeSharedDrawer(countedCash,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_close',{p_store_id:storeId,p_counted_cash:Number(countedCash),p_actor_name:actorName});
+ if(error)throw error;return data;
+}
+
+
 // Pengelolaan akun karyawan: seluruh operasi divalidasi RPC di sisi database.
 async function requireOwnerCloud(){
  await ensureClient();
