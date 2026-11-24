@@ -111,6 +111,7 @@ export async function mountShift(root,user){
  const p=$('#shiftPanel');
  if(deviceId){
   if(navigator.onLine){try{await flushPendingSharedDrawerEvents();}catch{}}
+  const pendingDrawer=JSON.parse(localStorage.getItem('mambo_pending_drawer_events')||'[]');if(pendingDrawer.length){p.innerHTML='<div class="notice"><b>Ada '+pendingDrawer.length+' pergerakan kas yang belum tersinkron.</b><p>Saldo laci belum dapat dipastikan. Periksa koneksi dan muat ulang menu sebelum mencatat aktivitas baru.</p></div>';return;}
   if(legacyOpen.length){p.innerHTML='<div class="notice"><b>Shift lama perlu diperiksa.</b><p>Ditemukan shift lama tanpa identitas perangkat. Sistem tidak akan memindahkan atau menutupnya otomatis. Selesaikan dari perangkat asal terlebih dahulu.</p></div>';return;}
   try{
    const snap=await deviceDrawerSnapshot();
