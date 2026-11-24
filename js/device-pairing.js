@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
-import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=device-pair-2';
+import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=operational-normalization-2';
 const SUPABASE_URL='https://wtsheaowviaedwhyiwkk.supabase.co';
 const SUPABASE_KEY='sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
 const KEY='mambo_paired_device';
@@ -40,7 +40,7 @@ export async function loginDeviceStaff(username,pin){
 }
 
 
-const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings'];
+const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings','operationalExpenses'];
 const INITIAL_SYNC_KEY='mambo_device_initial_data_sync_v1';
 const LEGACY_CASHIER_IDS=new Set([
  '1d25c016-9e7f-4890-9bdc-6f4d6b86c8f1',
@@ -85,10 +85,10 @@ export async function syncDeviceData(){
   // Kirim perubahan terbaru dari antrean lokal.
   const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
   for(let i=0;i<queue.length;i+=300){
-   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.operation!=='delete')
-    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{})}));
+   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity))
+    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{}),deleted:x.operation==='delete'}));
    if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
-   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity)&&item.operation!=='delete')await remove('syncQueue',item.id);
+   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity))await remove('syncQueue',item.id);
   }
   const rows=await deviceRpc('mambo_device_sync_pull',{p_device_token:saved.token});
   const result=await applyCloudRows(Array.isArray(rows)?rows:[]);
