@@ -74,6 +74,19 @@ export async function appendSharedDrawerEvent(event){
  if(error)throw error;return data;
 }
 
+export async function flushPendingSharedDrawerEvents(){
+ const pending=JSON.parse(localStorage.getItem('mambo_pending_drawer_events')||'[]');
+ if(!pending.length)return {sent:0,pending:0};
+ let sent=0;const remain=[];
+ for(const event of pending){
+  try{await appendSharedDrawerEvent(event);sent++;}
+  catch(err){remain.push(event);}
+ }
+ localStorage.setItem('mambo_pending_drawer_events',JSON.stringify(remain));
+ return {sent,pending:remain.length};
+}
+
+
 
 const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings','operationalExpenses'];
 const INITIAL_SYNC_KEY='mambo_device_initial_data_sync_v1';
