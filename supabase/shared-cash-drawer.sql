@@ -198,6 +198,28 @@ begin
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
 end $$;
 
+create or replace function public.mambo_shared_drawer_owner_event(
+ p_store_id uuid,p_event_id uuid,p_event_type text,p_amount numeric,
+ p_source_record_id text default null,p_note text default null,p_actor_name text default 'Owner'
+) returns jsonb language plpgsql security definer set search_path=public
+as $
+declare v_drawer public.mambo_shared_drawers%rowtype;
+begin
+ if auth.uid() is null or not public.mambo_is_owner(p_store_id) then
+   raise exception 'Hanya Owner toko yang dapat mencatat aktivitas laci ini.';
+ end if;
+ if p_event_id is null or p_amount is null or p_amount<=0 then raise exception 'Data pergerakan kas tidak valid.'; end if;
+ if p_event_type not in ('cash_sale','cash_in','cash_out','cash_expense','refund','adjustment') then raise exception 'Jenis pergerakan kas tidak diizinkan.'; end if;
+ select * into v_drawer from public.mambo_shared_drawers where store_id=p_store_id and status='open' for update;
+ if not found then raise exception 'Laci kas bersama belum dibuka.'; end if;
+ insert into public.mambo_shared_drawer_events(event_id,store_id,drawer_id,event_type,amount,
+   source_record_id,actor_id,actor_name,device_id,note)
+ values(p_event_id,p_store_id,v_drawer.id,p_event_type,p_amount,p_source_record_id,auth.uid(),
+   coalesce(nullif(trim(p_actor_name),''),'Owner'),null,p_note)
+ on conflict(event_id) do nothing;
+ return public.mambo_shared_drawer_snapshot_internal(p_store_id);
+end $;
+
 create or replace function public.mambo_shared_drawer_close(p_store_id uuid,p_counted_cash numeric,p_actor_name text)
 returns jsonb language plpgsql security definer set search_path=public
 as $$
@@ -227,6 +249,7 @@ revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from p
 revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
 revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
 revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
+revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
 revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
@@ -234,6 +257,7 @@ grant execute on function public.mambo_device_staff_logout(text,text) to anon,au
 grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
 grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
 
 notify pgrst, 'reload schema';
