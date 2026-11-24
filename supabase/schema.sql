@@ -205,7 +205,7 @@ create policy sync_records_update_member on public.mambo_sync_records for update
  )) with check (
  public.mambo_is_member(store_id) and (
   (entity in ('products','suppliers','categories','customers','promos','purchases','payables','settings') and public.mambo_has_role(store_id,array['owner','supervisor']))
-  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments') and public.mambo_is_member(store_id))
+  or (entity in ('transactions','shifts','movements','auditLogs','opnames','receivables','returns','supplierPayments','operationalExpenses') and public.mambo_is_member(store_id))
  ));
 create policy sync_records_delete_owner on public.mambo_sync_records for delete using (public.mambo_is_owner(store_id));
 
