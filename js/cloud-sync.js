@@ -78,6 +78,15 @@ export async function openSharedDrawer(openingCash,actorName='Owner'){
  const {data,error}=await client.rpc('mambo_shared_drawer_open',{p_store_id:storeId,p_opening_cash:Number(openingCash),p_actor_name:actorName});
  if(error)throw error;return data;
 }
+export async function appendOwnerDrawerEvent(event,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_owner_event',{
+  p_store_id:storeId,p_event_id:event.eventId,p_event_type:event.type,p_amount:Number(event.amount),
+  p_source_record_id:event.sourceRecordId||null,p_note:event.note||null,p_actor_name:actorName
+ });
+ if(error)throw error;return data;
+}
 export async function closeSharedDrawer(countedCash,actorName='Owner'){
  await ensureClient();
  if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
