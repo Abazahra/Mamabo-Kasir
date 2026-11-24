@@ -149,22 +149,15 @@ begin
  values(p_event_id,(v_staff->>'store_id')::uuid,v_drawer.id,p_event_type,p_amount,
    p_source_record_id,(v_staff->>'id')::uuid,v_staff->>'name',(v_staff->>'device_id')::uuid,p_note)
  on conflict(event_id) do nothing;
- return public.mambo_shared_drawer_snapshot((v_staff->>'store_id')::uuid);
+ return public.mambo_shared_drawer_snapshot_internal((v_staff->>'store_id')::uuid);
 end $$;
 
-create or replace function public.mambo_shared_drawer_snapshot(p_store_id uuid)
+create or replace function public.mambo_shared_drawer_snapshot_internal(p_store_id uuid)
 returns jsonb language plpgsql security definer set search_path=public
 as $$
 declare v_drawer public.mambo_shared_drawers%rowtype; v_sales numeric(18,2); v_in numeric(18,2);
  v_out numeric(18,2); v_refund numeric(18,2); v_events jsonb;
 begin
- if auth.uid() is not null then
-   if not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
- else
-   if not exists(select 1 from public.mambo_cashier_devices where store_id=p_store_id and revoked_at is null) then
-     raise exception 'Akses perangkat tidak valid.';
-   end if;
- end if;
  select * into v_drawer from public.mambo_shared_drawers
  where store_id=p_store_id and status='open' order by opened_at desc limit 1;
  if not found then return jsonb_build_object('open',false,'store_id',p_store_id); end if;
@@ -184,6 +177,27 @@ begin
    'opened_at',v_drawer.opened_at,'opened_by',v_drawer.opened_by_name,'events',v_events);
 end $$;
 
+create or replace function public.mambo_shared_drawer_snapshot(
+ p_store_id uuid,p_device_token text default null,p_staff_session_token text default null
+) returns jsonb language plpgsql security definer set search_path=public
+as $$
+begin
+ if auth.uid() is not null then
+   if not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
+ elsif p_device_token is not null and p_staff_session_token is not null then
+   perform public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+   if not exists(select 1 from public.mambo_device_staff_sessions s
+      join public.mambo_cashier_devices d on d.id=s.device_id
+      where s.token_hash=encode(digest(p_staff_session_token,'sha256'),'hex')
+        and d.token_hash=encode(digest(p_device_token,'sha256'),'hex') and s.store_id=p_store_id) then
+     raise exception 'Sesi kasir tidak memiliki akses ke toko ini.';
+   end if;
+ else
+   raise exception 'Autentikasi diperlukan.';
+ end if;
+ return public.mambo_shared_drawer_snapshot_internal(p_store_id);
+end $$;
+
 create or replace function public.mambo_shared_drawer_close(p_store_id uuid,p_counted_cash numeric,p_actor_name text)
 returns jsonb language plpgsql security definer set search_path=public
 as $$
@@ -196,7 +210,7 @@ begin
  select * into v_drawer from public.mambo_shared_drawers
  where store_id=p_store_id and status='open' for update;
  if not found then raise exception 'Tidak ada laci kas bersama yang terbuka.'; end if;
- v_snapshot:=public.mambo_shared_drawer_snapshot(p_store_id);
+ v_snapshot:=public.mambo_shared_drawer_snapshot_internal(p_store_id);
  v_expected:=(v_snapshot->>'expected_cash')::numeric;
  update public.mambo_shared_drawers set status='closed',closed_by=auth.uid(),
    closed_by_name=coalesce(nullif(trim(p_actor_name),''),'Owner'),closed_at=now(),
@@ -211,14 +225,15 @@ revoke all on function public.mambo_device_staff_session_check(text,text) from p
 revoke all on function public.mambo_device_staff_logout(text,text) from public;
 revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
 revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot(uuid) from public;
+revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
 revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
 grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_snapshot(uuid) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
 grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
 
 notify pgrst, 'reload schema';
