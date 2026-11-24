@@ -126,6 +126,8 @@ export async function mountShift(root,user){
   try{
    const cloud=await cloudStatus();
    if(cloud.authenticated&&cloud.storeId){
+    const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];for(const event of pending){try{await appendOwnerDrawerEvent(event,user.name);}catch{remain.push(event);}}localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(remain));
+    if(remain.length){p.innerHTML='<div class="notice"><b>Ada '+remain.length+' pergerakan kas yang belum tersinkron.</b><p>Penutupan laci dikunci sampai seluruh pergerakan kas diterima server. Periksa koneksi lalu muat ulang menu.</p></div>';return;}
     const snap=await ownerDrawerSnapshot();
     if(!snap?.open){
      p.innerHTML='<h3>Buka Laci Kas Bersama</h3><div class="field"><label>Modal awal laci kas</label><input id="sharedOpening" type="number" min="0" value="100000"></div><button class="primary" id="openShared">Buka Laci Kas Bersama</button><p class="muted">Pembukaan dilakukan melalui akun Owner Supabase. Shift lokal lama tidak diubah.</p>';
