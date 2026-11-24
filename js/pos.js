@@ -1,5 +1,5 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent} from './device-pairing.js?v=shared-drawer-1';
+import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,flushPendingSharedDrawerEvents} from './device-pairing.js?v=shared-drawer-1';
 import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer} from './cloud-sync.js?v=shared-drawer-1';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
@@ -110,6 +110,7 @@ export async function mountShift(root,user){
  root.innerHTML='<h1>Shift & Laci Kas</h1><p class="sub">Laci kas bersama toko dan aktivitas kas</p><section class="panel" id="shiftPanel"></section>';
  const p=$('#shiftPanel');
  if(deviceId){
+  if(navigator.onLine){try{await flushPendingSharedDrawerEvents();}catch{}}
   if(legacyOpen.length){p.innerHTML='<div class="notice"><b>Shift lama perlu diperiksa.</b><p>Ditemukan shift lama tanpa identitas perangkat. Sistem tidak akan memindahkan atau menutupnya otomatis. Selesaikan dari perangkat asal terlebih dahulu.</p></div>';return;}
   try{
    const snap=await deviceDrawerSnapshot();
