@@ -1,5 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot,appendSharedDrawerEvent} from './device-pairing.js?v=shared-drawer-1';
+import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent} from './device-pairing.js?v=shared-drawer-1';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer} from './cloud-sync.js?v=shared-drawer-1';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
@@ -111,7 +112,7 @@ export async function mountShift(root,user){
  if(deviceId){
   if(legacyOpen.length){p.innerHTML='<div class="notice"><b>Shift lama perlu diperiksa.</b><p>Ditemukan shift lama tanpa identitas perangkat. Sistem tidak akan memindahkan atau menutupnya otomatis. Selesaikan dari perangkat asal terlebih dahulu.</p></div>';return;}
   try{
-   const snap=await sharedDrawerSnapshot();
+   const snap=await deviceDrawerSnapshot();
    if(!snap?.open){p.innerHTML='<div class="notice"><b>Laci kas bersama belum dibuka oleh Owner.</b><p>Kasir tidak dapat membuka atau menutup laci kas.</p></div>';return;}
    p.innerHTML='<div class="grid"><div class="stat"><span>Modal awal</span><strong>'+rp(snap.opening_cash)+'</strong></div><div class="stat"><span>Penjualan tunai bersama</span><strong>'+rp(snap.cash_sales)+'</strong></div><div class="stat"><span>Kas masuk</span><strong>'+rp(snap.cash_in)+'</strong></div><div class="stat"><span>Kas keluar</span><strong>'+rp(snap.cash_out)+'</strong></div></div><p>Laci dibuka: '+esc(snap.opened_at||'-')+' oleh '+esc(snap.opened_by||'Owner')+'</p><div class="grand-total">Saldo kas bersama: '+rp(snap.expected_cash)+'</div><div class="actions"><button class="secondary" id="cashIn">Kas Masuk</button><button class="secondary" id="cashOut">Kas Keluar</button><button class="secondary" id="refreshDrawer">Perbarui Saldo</button></div><p class="muted">Saldo berasal dari ledger server. Penutupan laci hanya dapat dilakukan Owner.</p><div id="drawerEvents"></div>';
    $('#drawerEvents').innerHTML=(snap.events||[]).slice(-30).reverse().map(e=>'<p>'+esc(e.actor_name)+' · '+esc(e.event_type)+' · '+rp(e.amount)+' · '+esc(e.note||'')+'</p>').join('')||'<p class="muted">Belum ada aktivitas kas.</p>';
@@ -119,6 +120,22 @@ export async function mountShift(root,user){
    for(const [id,type] of [['cashIn','cash_in'],['cashOut','cash_out']])$('#'+id).onclick=async()=>{const amount=Number(prompt('Nominal (Rp)'));if(!Number.isFinite(amount)||amount<=0)return toast('Nominal tidak valid');const note=prompt('Keterangan wajib diisi');if(!note?.trim())return toast('Keterangan wajib diisi');try{await appendSharedDrawerEvent({eventId:uid(),type,amount,note:note.trim()});toast('Pergerakan kas tercatat.');await mountShift(root,user);}catch(err){toast('Gagal mencatat kas: '+(err.message||err));}};
   }catch(err){p.innerHTML='<div class="notice"><b>Laci kas bersama tidak dapat diverifikasi.</b><p>'+esc(err.message||err)+'</p><p>Jangan lanjutkan transaksi/pergerakan kas sebelum sesi dan koneksi server pulih.</p></div>';}
   return;
+ }
+ if(user.role==='owner'){
+  try{
+   const cloud=await cloudStatus();
+   if(cloud.authenticated&&cloud.storeId){
+    const snap=await ownerDrawerSnapshot();
+    if(!snap?.open){
+     p.innerHTML='<h3>Buka Laci Kas Bersama</h3><div class="field"><label>Modal awal laci kas</label><input id="sharedOpening" type="number" min="0" value="100000"></div><button class="primary" id="openShared">Buka Laci Kas Bersama</button><p class="muted">Pembukaan dilakukan melalui akun Owner Supabase. Shift lokal lama tidak diubah.</p>';
+     $('#openShared').onclick=async()=>{const amount=Number($('#sharedOpening').value);if(!Number.isFinite(amount)||amount<0)return toast('Modal awal tidak valid');try{await openSharedDrawer(amount,user.name);toast('Laci kas bersama dibuka.');await mountShift(root,user);}catch(err){toast('Gagal membuka laci: '+(err.message||err));}};
+     return;
+    }
+    p.innerHTML='<div class="grid"><div class="stat"><span>Modal awal</span><strong>'+rp(snap.opening_cash)+'</strong></div><div class="stat"><span>Penjualan tunai bersama</span><strong>'+rp(snap.cash_sales)+'</strong></div><div class="stat"><span>Kas masuk</span><strong>'+rp(snap.cash_in)+'</strong></div><div class="stat"><span>Kas keluar</span><strong>'+rp(snap.cash_out)+'</strong></div></div><div class="grand-total">Saldo kas bersama: '+rp(snap.expected_cash)+'</div><p>Dibuka: '+esc(snap.opened_at)+' oleh '+esc(snap.opened_by)+'</p><div class="field"><label>Uang fisik saat tutup</label><input id="sharedCounted" type="number" min="0"></div><button class="danger" id="closeShared">Tutup Laci Kas Bersama</button><div id="sharedCloseResult"></div><p class="muted">Kasir tidak dapat menutup laci. Penutupan menghitung saldo ledger server.</p>';
+    $('#closeShared').onclick=async()=>{const counted=Number($('#sharedCounted').value);if(!Number.isFinite(counted)||counted<0)return toast('Isi jumlah uang fisik');if(!confirm('Tutup laci kas bersama untuk seluruh perangkat?'))return;try{const result=await closeSharedDrawer(counted,user.name);$('#sharedCloseResult').innerHTML='<h3>Ringkasan Penutupan</h3><p>Kas sistem: '+rp(result.expected_cash)+'</p><p>Kas fisik: '+rp(result.counted_cash)+'</p><h3>Selisih: '+rp(result.difference)+'</h3>';toast('Laci kas bersama ditutup.');}catch(err){toast('Gagal menutup laci: '+(err.message||err));}};
+    return;
+   }
+  }catch(err){p.innerHTML='<div class="notice"><b>Status laci kas cloud tidak dapat diverifikasi.</b><p>'+esc(err.message||err)+'</p><p>Masuk ke Supabase Cloud sebagai Owner untuk mengelola laci kas bersama.</p></div>';return;}
  }
  if(!s){
   if(legacyOpen.length){p.innerHTML='<h3>Shift lama perlu diperiksa</h3><div class="notice">Shift lama tanpa identitas perangkat tidak akan dipindahkan atau ditutup otomatis.</div>';return;}
