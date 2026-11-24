@@ -5,22 +5,15 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-permissions:
-  actions: read
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
   group: "pages"
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,32 +22,21 @@ jobs:
         with:
           enablement: true
       - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
-          name: github-pages-${{ github.run_attempt }}
           path: .
-      - name: Wait for Pages artifact visibility
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
-        run: |
-          for attempt in {1..12}; do
-            count=$(curl -fsS \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
-              | jq --arg name "$ARTIFACT_NAME" '[.artifacts[] | select(.name == $name and .expired == false)] | length')
-            if [ "$count" -ge 1 ]; then
-              echo "Artifact $ARTIFACT_NAME is visible to the GitHub API."
-              exit 0
-            fi
-            echo "Artifact $ARTIFACT_NAME is not visible yet (attempt $attempt/12)."
-            sleep 5
-          done
-          echo "::error::Artifact $ARTIFACT_NAME did not become visible after 60 seconds."
-          exit 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+      actions: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          artifact_name: github-pages-${{ github.run_attempt }}
