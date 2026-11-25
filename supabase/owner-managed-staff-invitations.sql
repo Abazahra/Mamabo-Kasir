@@ -179,7 +179,7 @@ begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then raise exception 'Akses hanya untuk Owner toko.'; end if;
  v_token:=encode(gen_random_bytes(32),'hex');
  update public.mambo_staff_accounts a set invite_token_hash=encode(digest(v_token,'sha256'),'hex'),
-  invite_expires_at=now()+interval '7 days',password_hash=null,must_change_password=true,updated_at=now()
+  invite_expires_at=now()+interval '7 days',password_hash=null,pin_hash=crypt(encode(gen_random_bytes(16),'hex'),gen_salt('bf',10)),must_change_password=true,updated_at=now()
  from public.mambo_staff_roles r where a.id=p_staff_id and a.store_id=p_store_id and r.id=a.staff_role_id
  returning a.username,r.title into v_username,v_title;
  if v_username is null then raise exception 'Akun karyawan tidak ditemukan.'; end if;
