@@ -71,6 +71,7 @@ export async function sharedDrawerSnapshot(){
  const {data,error}=await client.rpc('mambo_shared_drawer_snapshot',{p_store_id:saved.storeId,p_device_token:saved.token,p_staff_session_token:session.token});
  if(error)throw error;return data;
 }
+export async function resolveSharedDrawerEvent(eventId,resolution){const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:saved.storeId,p_event_id:eventId,p_resolution:resolution,p_device_token:saved.token,p_staff_session_token:session.token});if(error)throw error;return data;}
 export async function appendSharedDrawerEvent(event){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
@@ -98,7 +99,7 @@ export async function flushPendingSharedDrawerEvents(){
  if(!pending.length)return {sent:0,pending:0};
  let sent=0;const remain=[];
  for(const event of pending){
-  try{await appendSharedDrawerEvent(event);sent++;}
+  try{await appendSharedDrawerEvent(event);if(event.type==='cash_sale'||event.type==='cash_expense'){const entity=event.type==='cash_sale'?'transactions':'operationalExpenses',rows=await all(entity),exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));await resolveSharedDrawerEvent(event.eventId,exists?'confirmed':'reversed');}sent++;}
   catch(err){remain.push(event);}
  }
  localStorage.setItem('mambo_pending_drawer_events',JSON.stringify(remain));
