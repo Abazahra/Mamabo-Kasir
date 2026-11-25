@@ -7,7 +7,8 @@ const start=sql.indexOf('create or replace function public.mambo_shared_drawer_e
 const end=sql.indexOf('\nend $$;',start);
 assert.notEqual(start,-1,'drawer event resolver must exist');
 assert.notEqual(end,-1,'drawer event resolver must have a body');
-const resolver=sql.slice(start,end);\nconst patch=readFileSync(new URL('../supabase/shared-cash-drawer-confirmation-guard.sql',import.meta.url),'utf8');
+const resolver=sql.slice(start,end);
+const patch=readFileSync(new URL('../supabase/shared-cash-drawer-confirmation-guard.sql',import.meta.url),'utf8');
 
 test('server refuses to confirm a cash event without its source record',()=>{
  assert.match(resolver,/if\s+p_resolution\s*=\s*'confirmed'[\s\S]*?v_event\.source_record_id/i);
