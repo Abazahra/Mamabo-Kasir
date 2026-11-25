@@ -49,7 +49,7 @@ export async function mountPOS(root,user){
   throw localError;
  }
  if(sharedCash)localStorage.setItem(drawerKey,JSON.stringify(JSON.parse(localStorage.getItem(drawerKey)||'[]').filter(x=>x.eventId!==id)));
- dlg.remove();cart=[];toast(drawerPending?'Transaksi tersimpan; pencatatan kas menunggu sinkronisasi.':'Transaksi tersimpan');mountPOS(root,user);
+ dlg.remove();cart=[];toast('Transaksi tersimpan');mountPOS(root,user);
  const receiptData={receipt,items,total:t.total,subtotal:t.sub,discount:t.d,tax:t.vat,payments:pays,customer:customer?.name||'Pelanggan Umum',cashier:user.name,stamp};
  const done=document.createElement('div');done.className='modal-backdrop';done.innerHTML=`<section class="modal"><h2>Transaksi Berhasil</h2><p>Pembayaran ${rp(t.total)} sudah tersimpan.</p><p class="muted">Pilih tindakan berikut. Struk tidak dicetak otomatis.</p><div class="modal-actions"><button class="secondary" id="finishNoPrint">Selesai</button><button class="secondary" id="shareReceiptWA">Kirim e-Struk WA</button><button class="primary" id="printReceiptNow">Cetak / PDF</button></div></section>`;document.body.append(done);
  done.querySelector('#finishNoPrint').onclick=()=>done.remove();
