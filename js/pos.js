@@ -1,6 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl} from './device-pairing.js?v=shared-drawer-4';
-import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents} from './cloud-sync.js?v=shared-drawer-4';
+import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl} from './device-pairing.js?v=shared-drawer-5';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents} from './cloud-sync.js?v=shared-drawer-5';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
