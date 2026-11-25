@@ -101,6 +101,16 @@ export async function reviewSharedDrawerPendingEvents(){
  }
  return {snapshot:data,pending:reviewed};
 }
+export async function syncOwnerSharedDrawerSourceRecord(entity,record){
+ await ensureClient();
+ if(!['transactions','operationalExpenses'].includes(entity)||!record?.id)throw Error('Record sumber pergerakan kas tidak valid.');
+ if(!client||!session||!storeId)throw Error('Login Cloud Owner diperlukan untuk menyinkronkan bukti transaksi.');
+ const {error}=await client.from('mambo_sync_records').upsert({
+  store_id:storeId,entity,record_id:String(record.id),payload:record,deleted:false,updated_at:new Date().toISOString()
+ },{onConflict:'store_id,entity,record_id'});
+ if(error)throw error;
+ return true;
+}
 export async function resolveOwnerDrawerEvent(eventId,resolution){await ensureClient();if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:storeId,p_event_id:eventId,p_resolution:resolution});if(error)throw error;return data;}
 export async function flushPendingOwnerDrawerEvents(){
  const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];
