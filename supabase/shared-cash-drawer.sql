@@ -319,6 +319,8 @@ create table if not exists public.mambo_shared_drawer_settings (
  supervisor_control boolean not null default false,
  updated_at timestamptz not null default now()
 );
+alter table public.mambo_shared_drawer_settings
+ add column if not exists supervisor_expense_categories boolean not null default false;
 alter table public.mambo_shared_drawer_settings enable row level security;
 revoke all on public.mambo_shared_drawer_settings from public,anon,authenticated;
 
@@ -377,6 +379,38 @@ begin
 exception when unique_violation then raise exception 'Laci kas bersama toko sudah terbuka.';
 end $$;
 
+
+-- Separate Owner-controlled permission for expanded operational-expense categories.
+create or replace function public.mambo_shared_drawer_supervisor_expense_setting_status(p_store_id uuid)
+returns boolean language plpgsql security definer set search_path=public
+as $
+begin
+ if auth.uid() is null or not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
+ return coalesce((select supervisor_expense_categories from public.mambo_shared_drawer_settings where store_id=p_store_id),false);
+end $;
+
+create or replace function public.mambo_shared_drawer_supervisor_expense_setting(p_store_id uuid,p_enabled boolean)
+returns boolean language plpgsql security definer set search_path=public
+as $
+begin
+ if auth.uid() is null or not public.mambo_is_owner(p_store_id) then raise exception 'Hanya Owner yang dapat mengubah izin kategori Supervisor.'; end if;
+ insert into public.mambo_shared_drawer_settings(store_id,supervisor_expense_categories,updated_at)
+ values(p_store_id,coalesce(p_enabled,false),now())
+ on conflict(store_id) do update set supervisor_expense_categories=excluded.supervisor_expense_categories,updated_at=now();
+ return coalesce(p_enabled,false);
+end $;
+
+create or replace function public.mambo_shared_drawer_supervisor_expense_status(p_device_token text,p_staff_session_token text)
+returns boolean language plpgsql security definer set search_path=public
+as $
+declare v_staff jsonb; v_store uuid;
+begin
+ v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+ if coalesce(v_staff->>'role','')<>'supervisor' then return false; end if;
+ v_store:=(v_staff->>'store_id')::uuid;
+ return coalesce((select supervisor_expense_categories from public.mambo_shared_drawer_settings where store_id=v_store),false);
+end $;
+
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
 revoke all on function public.mambo_device_staff_logout(text,text) from public;
@@ -389,6 +423,9 @@ revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from 
 revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
@@ -400,5 +437,8 @@ grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to
 grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
 
 notify pgrst, 'reload schema';
