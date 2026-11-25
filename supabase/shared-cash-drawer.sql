@@ -189,12 +189,20 @@ create or replace function public.mambo_shared_drawer_event(
  p_source_record_id text default null,p_note text default null
 ) returns jsonb language plpgsql security definer set search_path=public,extensions
 as $$
-declare v_staff jsonb; v_drawer public.mambo_shared_drawers%rowtype;
+declare v_staff jsonb; v_drawer public.mambo_shared_drawers%rowtype; v_existing public.mambo_shared_drawer_events%rowtype; v_store uuid;
 begin
  v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+ v_store:=(v_staff->>'store_id')::uuid;
  if p_event_id is null or p_amount is null or p_amount<=0 then raise exception 'Data pergerakan kas tidak valid.'; end if;
  if p_event_type not in ('cash_sale','cash_in','cash_out','cash_expense','refund','adjustment') then
    raise exception 'Jenis pergerakan kas tidak diizinkan.';
+ end if;
+ select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id;
+ if found then
+  if v_existing.store_id<>v_store or v_existing.actor_id<>(v_staff->>'id')::uuid or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount then
+   raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
+  end if;
+  return public.mambo_shared_drawer_snapshot_internal(v_store);
  end if;
  select * into v_drawer from public.mambo_shared_drawers
  where store_id=(v_staff->>'store_id')::uuid and status='open' for update;
@@ -258,13 +266,20 @@ create or replace function public.mambo_shared_drawer_owner_event(
  p_source_record_id text default null,p_note text default null,p_actor_name text default 'Owner'
 ) returns jsonb language plpgsql security definer set search_path=public
 as $$
-declare v_drawer public.mambo_shared_drawers%rowtype;
+declare v_drawer public.mambo_shared_drawers%rowtype; v_existing public.mambo_shared_drawer_events%rowtype;
 begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then
    raise exception 'Hanya Owner toko yang dapat mencatat aktivitas laci ini.';
  end if;
  if p_event_id is null or p_amount is null or p_amount<=0 then raise exception 'Data pergerakan kas tidak valid.'; end if;
  if p_event_type not in ('cash_sale','cash_in','cash_out','cash_expense','refund','adjustment') then raise exception 'Jenis pergerakan kas tidak diizinkan.'; end if;
+ select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id;
+ if found then
+  if v_existing.store_id<>p_store_id or v_existing.actor_id<>auth.uid() or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount then
+   raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
+  end if;
+  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
+ end if;
  select * into v_drawer from public.mambo_shared_drawers where store_id=p_store_id and status='open' for update;
  if not found then raise exception 'Laci kas bersama belum dibuka.'; end if;
  insert into public.mambo_shared_drawer_events(event_id,store_id,drawer_id,event_type,amount,
