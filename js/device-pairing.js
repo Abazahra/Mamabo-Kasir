@@ -99,8 +99,21 @@ export async function flushPendingSharedDrawerEvents(){
  if(!pending.length)return {sent:0,pending:0};
  let sent=0;const remain=[];
  for(const event of pending){
-  try{await appendSharedDrawerEvent(event);if(event.type==='cash_sale'||event.type==='cash_expense'){const entity=event.type==='cash_sale'?'transactions':'operationalExpenses',rows=await all(entity),exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));await resolveSharedDrawerEvent(event.eventId,exists?'confirmed':'reversed');}sent++;}
-  catch(err){remain.push(event);}
+  try{
+   const snapshot=await appendSharedDrawerEvent(event);
+   if(event.type==='cash_sale'||event.type==='cash_expense'){
+    const existing=(snapshot?.events||[]).find(row=>String(row.event_id)===String(event.eventId));
+    // Event yang sudah confirmed tampil di snapshot; event reversed tidak ditampilkan.
+    // Jangan mencoba mengubah status final atau membalik event yang sudah diputus Owner.
+    if(existing?.resolution_status==='pending'){
+     const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
+     const rows=await all(entity);
+     const exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     await resolveSharedDrawerEvent(event.eventId,exists?'confirmed':'reversed');
+    }
+   }
+   sent++;
+  }catch(err){remain.push(event);}
  }
  localStorage.setItem('mambo_pending_drawer_events',JSON.stringify(remain));
  return {sent,pending:remain.length};
