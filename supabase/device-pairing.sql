@@ -125,33 +125,7 @@ begin
   into v_products
   from public.mambo_sync_records
   where store_id = v_device.store_id and entity = 'products' and deleted = false
-    and coalesce(payload->>'sku','') ~ '^MAMBO-0(0[1-9]|[1-3][0-9]|4[0-7])
-
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', record_id,
-    'name', coalesce(payload->>'name','')
-  ) order by coalesce(payload->>'name','')), '[]'::jsonb)
-  into v_categories
-  from public.mambo_sync_records
-  where store_id = v_device.store_id and entity = 'categories' and deleted = false;
-
-  return jsonb_build_object('store_id', v_device.store_id, 'products', v_products, 'categories', v_categories);
-end;
-$$;
-
-revoke all on function public.mambo_owner_create_pair_code(uuid, text) from public, anon;
-grant execute on function public.mambo_owner_create_pair_code(uuid, text) to authenticated;
-
-revoke all on function public.mambo_device_redeem_pair_code(text, text) from public;
-grant execute on function public.mambo_device_redeem_pair_code(text, text) to anon, authenticated;
-
-revoke all on function public.mambo_device_catalog_snapshot(text) from public;
-grant execute on function public.mambo_device_catalog_snapshot(text) to anon, authenticated;
-
--- Opsional: Owner dapat mencabut perangkat tertentu dengan SQL:
--- update public.mambo_cashier_devices set revoked_at = now()
--- where id = 'UUID-PERANGKAT' and store_id = 'UUID-TOKO';
-;
+    and coalesce(payload->>'sku','') ~ '^MAMBO-0(0[1-9]|[1-3][0-9]|4[0-7])';
 
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', record_id,

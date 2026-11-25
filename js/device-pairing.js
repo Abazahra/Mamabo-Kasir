@@ -30,14 +30,113 @@ export async function listDeviceStaff(){
  if(error)throw error;
  return Array.isArray(data)?data:[];
 }
+const STAFF_SESSION_KEY='mambo_device_staff_session';
 export async function loginDeviceStaff(username,pin){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
  const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin});
  if(error)throw error;
- if(!data?.id||!data?.role)throw Error('Akun atau PIN tidak sesuai.');
- return {id:data.id,name:data.name,role:data.role,username:data.username,active:true};
+ if(!data?.id||!data?.role||!data?.staff_session_token)throw Error('Server belum mengaktifkan sesi kasir bersama. Jalankan migrasi shared-cash-drawer.sql terlebih dahulu.');
+ const session={token:data.staff_session_token,expiresAt:data.staff_session_expires_at,staffId:data.id,username:data.username,deviceId:data.device_id,storeId:data.store_id};
+ localStorage.setItem(STAFF_SESSION_KEY,JSON.stringify(session));
+ return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
 }
+export async function restoreDeviceStaffSession(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)return null;
+ const {data,error}=await client.rpc('mambo_device_staff_session_check',{p_device_token:saved.token,p_staff_session_token:session.token});
+ if(error){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
+ if(!data?.active||String(data.id)!==String(session.staffId)){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
+ return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
+}
+export async function logoutDeviceStaff(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ try{if(saved?.token&&session?.token)await client.rpc('mambo_device_staff_logout',{p_device_token:saved.token,p_staff_session_token:session.token});}
+ finally{localStorage.removeItem(STAFF_SESSION_KEY);}
+}
+export async function supervisorExpenseCategoryAccess(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_status',{p_device_token:saved.token,p_staff_session_token:session.token});
+ if(error)throw error;return !!data;
+}
+
+export async function sharedDrawerSnapshot(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_snapshot',{p_store_id:saved.storeId,p_device_token:saved.token,p_staff_session_token:session.token});
+ if(error)throw error;return data;
+}
+export async function syncSharedDrawerSourceRecord(entity,record){
+ if(!['transactions','operationalExpenses'].includes(entity)||!record?.id)throw Error('Record sumber pergerakan kas tidak valid.');
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
+ return deviceRpc('mambo_device_sync_push',{
+  p_device_token:saved.token,
+  p_records:[{entity,record_id:String(record.id),payload:record,deleted:false}],
+  p_insert_only:false
+ });
+}
+export async function resolveSharedDrawerEvent(eventId,resolution){const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:saved.storeId,p_event_id:eventId,p_resolution:resolution,p_device_token:saved.token,p_staff_session_token:session.token});if(error)throw error;return data;}
+export async function appendSharedDrawerEvent(event){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_event',{
+  p_device_token:saved.token,p_staff_session_token:session.token,p_event_id:event.eventId,
+  p_event_type:event.type,p_amount:event.amount,p_source_record_id:event.sourceRecordId||null,p_note:event.note||null
+ });
+ if(error)throw error;return data;
+}
+
+export async function supervisorSharedDrawerControl(action,openingCash=null,countedCash=null){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_control',{
+  p_device_token:saved.token,p_staff_session_token:session.token,p_action:action,
+  p_opening_cash:openingCash,p_counted_cash:countedCash,p_actor_name:session.name||'Supervisor'
+ });
+ if(error)throw error;return data;
+}
+
+export async function flushPendingSharedDrawerEvents(){
+ const pending=JSON.parse(localStorage.getItem('mambo_pending_drawer_events')||'[]');
+ if(!pending.length)return {sent:0,pending:0};
+ let sent=0;const remain=[];
+ for(const event of pending){
+  try{
+   const snapshot=await appendSharedDrawerEvent(event);
+   if(event.type==='cash_sale'||event.type==='cash_expense'){
+    const existing=(snapshot?.events||[]).find(row=>String(row.event_id)===String(event.eventId));
+    // Event yang sudah confirmed tampil di snapshot; event reversed tidak ditampilkan.
+    // Jangan mencoba mengubah status final atau membalik event yang sudah diputus Owner.
+    if(existing?.resolution_status==='pending'){
+     const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
+     const rows=await all(entity);
+     const source=rows.find(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     if(source){
+      // Pastikan bukti transaksi sudah diterima server sebelum ledger kas dikonfirmasi.
+      await deviceRpc('mambo_device_sync_push',{
+       p_device_token:JSON.parse(localStorage.getItem(KEY)||'null')?.token,
+       p_records:[{entity,record_id:String(source.id),payload:source,deleted:false}],
+       p_insert_only:false
+      });
+      await resolveSharedDrawerEvent(event.eventId,'confirmed');
+     }else await resolveSharedDrawerEvent(event.eventId,'reversed');
+    }
+   }
+   sent++;
+  }catch(err){remain.push(event);}
+ }
+ localStorage.setItem('mambo_pending_drawer_events',JSON.stringify(remain));
+ return {sent,pending:remain.length};
+}
+
 
 
 const SYNC_ENTITIES=['transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings','operationalExpenses'];
@@ -85,7 +184,7 @@ export async function syncDeviceData(){
   // Kirim perubahan terbaru dari antrean lokal.
   const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
   for(let i=0;i<queue.length;i+=300){
-   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity))
+   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.entity!=='shifts')
     .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{}),deleted:x.operation==='delete'}));
    if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
    for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity))await remove('syncQueue',item.id);

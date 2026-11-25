@@ -1,4 +1,5 @@
 import {all,put,remove,uid,applyCloudRows} from './db.js?v=operational-normalization-2';
+import {validatePendingDrawerRecord} from './shared-drawer-validation.mjs?v=shared-drawer-6';
 let client=null,storeId=null,session=null,busy=false,syncPromise=null,clientConfigKey=null,authSubscription=null,syncStarted=false;
 function notifyQueue(){all('syncQueue').then(rows=>window.dispatchEvent(new CustomEvent('mambo-sync-update',{detail:{pending:rows.length}}))).catch(()=>{});}
 const $=s=>document.querySelector(s);
@@ -63,6 +64,120 @@ export async function createCashierPairCode(label='Perangkat Kasir'){
  const {data,error}=await client.rpc('mambo_owner_create_pair_code',{p_store_id:storeId,p_label:label});
  if(error)throw error;
  return String(data||'');
+}
+
+
+export async function sharedDrawerSnapshot(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_snapshot',{p_store_id:storeId});
+ if(error)throw error;return data;
+}
+export async function openSharedDrawer(openingCash,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_open',{p_store_id:storeId,p_opening_cash:Number(openingCash),p_actor_name:actorName});
+ if(error)throw error;return data;
+}
+export async function reviewSharedDrawerPendingEvents(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_snapshot',{p_store_id:storeId});
+ if(error)throw error;
+ const pending=(data?.events||[]).filter(e=>e.resolution_status==='pending');
+ const reviewed=[];
+ for(const event of pending){
+  const entity=event.event_type==='cash_sale'?'transactions':event.event_type==='cash_expense'?'operationalExpenses':null;
+  let row=null,synced=false,valid=false,validationReason='Jenis pergerakan belum didukung untuk pemeriksaan otomatis.';
+  if(entity&&event.source_record_id){
+   const result=await client.from('mambo_sync_records').select('record_id,payload,deleted').eq('store_id',storeId).eq('entity',entity).eq('record_id',String(event.source_record_id)).maybeSingle();
+   if(result.error)throw result.error;
+   row=result.data;
+   synced=!!row&&!row.deleted;
+   const validation=validatePendingDrawerRecord(event,row);
+   valid=validation.valid;validationReason=validation.reason;
+  }
+  reviewed.push({...event,source_entity:entity,synced_record_found:synced,synced_record_valid:valid,validation_reason:validationReason});
+ }
+ return {snapshot:data,pending:reviewed};
+}
+export async function syncOwnerSharedDrawerSourceRecord(entity,record){
+ await ensureClient();
+ if(!['transactions','operationalExpenses'].includes(entity)||!record?.id)throw Error('Record sumber pergerakan kas tidak valid.');
+ if(!client||!session||!storeId)throw Error('Login Cloud Owner diperlukan untuk menyinkronkan bukti transaksi.');
+ const {error}=await client.from('mambo_sync_records').upsert({
+  store_id:storeId,entity,record_id:String(record.id),payload:record,deleted:false,updated_at:new Date().toISOString()
+ },{onConflict:'store_id,entity,record_id'});
+ if(error)throw error;
+ return true;
+}
+export async function resolveOwnerDrawerEvent(eventId,resolution){await ensureClient();if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:storeId,p_event_id:eventId,p_resolution:resolution});if(error)throw error;return data;}
+export async function flushPendingOwnerDrawerEvents(){
+ const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];
+ for(const event of pending){
+  try{
+   const snapshot=await appendOwnerDrawerEvent(event,'Owner');
+   if(event.type==='cash_sale'||event.type==='cash_expense'){
+    const existing=(snapshot?.events||[]).find(row=>String(row.event_id)===String(event.eventId));
+    // Event confirmed sudah final; event reversed tidak muncul pada snapshot.
+    // Hindari mencoba menyelesaikan ulang dengan status yang berlawanan.
+    if(existing?.resolution_status==='pending'){
+     const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
+     const rows=await all(entity);
+     const source=rows.find(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     if(source){
+      // Simpan bukti transaksi ke pusat sebelum mengonfirmasi saldo laci.
+      const {error:syncError}=await client.from('mambo_sync_records').upsert({
+       store_id:storeId,entity,record_id:String(source.id),payload:source,deleted:false,updated_at:new Date().toISOString()
+      },{onConflict:'store_id,entity,record_id'});
+      if(syncError)throw syncError;
+      await resolveOwnerDrawerEvent(event.eventId,'confirmed');
+     }else await resolveOwnerDrawerEvent(event.eventId,'reversed');
+    }
+   }
+  }catch(err){remain.push(event);}
+ }
+ localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(remain));
+ return {pending:remain.length};
+}
+export async function appendOwnerDrawerEvent(event,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_owner_event',{
+  p_store_id:storeId,p_event_id:event.eventId,p_event_type:event.type,p_amount:Number(event.amount),
+  p_source_record_id:event.sourceRecordId||null,p_note:event.note||null,p_actor_name:actorName
+ });
+ if(error)throw error;return data;
+}
+export async function setSupervisorDrawerControl(enabled){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_setting',{p_store_id:storeId,p_enabled:!!enabled});
+ if(error)throw error;return data;
+}
+export async function supervisorExpenseCategoryStatus(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_setting_status',{p_store_id:storeId});
+ if(error)throw error;return !!data;
+}
+export async function setSupervisorExpenseCategoryAccess(enabled){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_setting',{p_store_id:storeId,p_enabled:!!enabled});
+ if(error)throw error;return !!data;
+}
+export async function supervisorDrawerControlStatus(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_status',{p_store_id:storeId});
+ if(error)throw error;return !!data;
+}
+export async function closeSharedDrawer(countedCash,actorName='Owner'){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_close',{p_store_id:storeId,p_counted_cash:Number(countedCash),p_actor_name:actorName});
+ if(error)throw error;return data;
 }
 
 
