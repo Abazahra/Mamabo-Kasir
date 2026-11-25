@@ -215,7 +215,7 @@ async function requireOwnerCloud(){
 }
 export async function staffAccountList(){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_list',{p_store_id:storeId});if(error)throw error;return Array.isArray(data)?data:[];}
 export async function staffAccountCreate(username,name,role,pin){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_create',{p_store_id:storeId,p_username:username,p_display_name:name,p_app_role:role,p_pin:pin});if(error)throw error;return data;}
-export async function staffAccountUpdate(id,username,name,role,active){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_update',{p_store_id:storeId,p_staff_id:id,p_username:username,p_display_name:name,p_app_role:role,p_active:active});if(error)throw error;return data;}
+export async function staffAccountUpdate(id,username,name,roleId,active){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_update',{p_store_id:storeId,p_staff_id:id,p_username:username,p_display_name:name,p_role_id:roleId,p_active:active});if(error)throw error;return data;}
 export async function staffAccountResetPin(id,pin){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_reset_pin',{p_store_id:storeId,p_staff_id:id,p_pin:pin});if(error)throw error;return data;}
 
 export async function staffRoleList(){const {client,storeId}=await requireOwnerCloud();const {data,error}=await client.rpc('mambo_owner_staff_roles',{p_store_id:storeId});if(error)throw error;return Array.isArray(data)?data:[];}
