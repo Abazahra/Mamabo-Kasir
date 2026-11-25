@@ -102,7 +102,27 @@ export async function reviewSharedDrawerPendingEvents(){
  return {snapshot:data,pending:reviewed};
 }
 export async function resolveOwnerDrawerEvent(eventId,resolution){await ensureClient();if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:storeId,p_event_id:eventId,p_resolution:resolution});if(error)throw error;return data;}
-export async function flushPendingOwnerDrawerEvents(){const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];for(const event of pending){try{await appendOwnerDrawerEvent(event,'Owner');if(event.type==='cash_sale'||event.type==='cash_expense'){const entity=event.type==='cash_sale'?'transactions':'operationalExpenses',rows=await all(entity),exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));await resolveOwnerDrawerEvent(event.eventId,exists?'confirmed':'reversed');}}catch(err){remain.push(event);}}localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(remain));return {pending:remain.length};}
+export async function flushPendingOwnerDrawerEvents(){
+ const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];
+ for(const event of pending){
+  try{
+   const snapshot=await appendOwnerDrawerEvent(event,'Owner');
+   if(event.type==='cash_sale'||event.type==='cash_expense'){
+    const existing=(snapshot?.events||[]).find(row=>String(row.event_id)===String(event.eventId));
+    // Event confirmed sudah final; event reversed tidak muncul pada snapshot.
+    // Hindari mencoba menyelesaikan ulang dengan status yang berlawanan.
+    if(existing?.resolution_status==='pending'){
+     const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
+     const rows=await all(entity);
+     const exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     await resolveOwnerDrawerEvent(event.eventId,exists?'confirmed':'reversed');
+    }
+   }
+  }catch(err){remain.push(event);}
+ }
+ localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(remain));
+ return {pending:remain.length};
+}
 export async function appendOwnerDrawerEvent(event,actorName='Owner'){
  await ensureClient();
  if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
