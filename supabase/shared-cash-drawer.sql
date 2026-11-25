@@ -62,7 +62,7 @@ revoke all on public.mambo_shared_drawer_events from public, anon, authenticated
 create or replace function public.mambo_device_sync_push(
  p_device_token text,p_records jsonb,p_insert_only boolean default false
 ) returns integer language plpgsql security definer set search_path=public,extensions
-as $
+as $$
 declare v_store uuid; v_row jsonb; v_count integer:=0; v_entity text; v_id text;
 begin
  select store_id into v_store from public.mambo_cashier_devices
@@ -94,11 +94,11 @@ begin
  update public.mambo_cashier_devices set last_seen_at=now()
  where token_hash=encode(digest(p_device_token,'sha256'),'hex');
  return v_count;
-end $;
+end $$;
 
 create or replace function public.mambo_device_sync_pull(p_device_token text)
 returns jsonb language plpgsql security definer set search_path=public,extensions
-as $
+as $$
 declare v_store uuid;v_result jsonb;
 begin
  select store_id into v_store from public.mambo_cashier_devices
@@ -110,7 +110,7 @@ begin
  into v_result from public.mambo_sync_records
  where store_id=v_store and entity in ('transactions','shifts','movements','receivables','returns','auditLogs','opnames','purchases','payables','supplierPayments','promos','customers','suppliers','settings','operationalExpenses');
  return v_result;
-end $;
+end $$;
 
 -- Upgrade device PIN login to issue a short-lived staff session bound to the paired device.
 create or replace function public.mambo_device_staff_login(p_device_token text,p_username text,p_pin text)
@@ -257,7 +257,7 @@ create or replace function public.mambo_shared_drawer_owner_event(
  p_store_id uuid,p_event_id uuid,p_event_type text,p_amount numeric,
  p_source_record_id text default null,p_note text default null,p_actor_name text default 'Owner'
 ) returns jsonb language plpgsql security definer set search_path=public
-as $
+as $$
 declare v_drawer public.mambo_shared_drawers%rowtype;
 begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then
@@ -273,7 +273,7 @@ begin
    coalesce(nullif(trim(p_actor_name),''),'Owner'),null,p_note)
  on conflict(event_id) do nothing;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
-end $;
+end $$;
 
 create or replace function public.mambo_shared_drawer_close(p_store_id uuid,p_counted_cash numeric,p_actor_name text)
 returns jsonb language plpgsql security definer set search_path=public
