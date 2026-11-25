@@ -12,6 +12,59 @@ export async function cloudSignIn(email,password,storeName='MAMBO KASIR'){await 
 export async function cloudRegisterOwner(url,key,email,password,storeName){await configureCloud(url,key,'');if(!client)throw Error('Konfigurasi Supabase belum diisi.');const {data,error}=await client.auth.signUp({email,password});if(error)throw error;session=data.session||null;if(!session){localStorage.setItem('mambo_cloud_config',JSON.stringify({url:url.trim(),key:key.trim(),storeId:''}));return {needsConfirmation:true};}const boot=await client.rpc('mambo_owner_bootstrap',{p_store_name:storeName});if(boot.error)throw boot.error;storeId=boot.data?.store_id||null;if(!storeId)throw Error('Supabase tidak mengembalikan Store ID.');const cfg=getCloudConfig();cfg.storeId=storeId;localStorage.setItem('mambo_cloud_config',JSON.stringify(cfg));await syncNow();return {needsConfirmation:false,storeId};}
 // Login Owner lintas-browser: hanya menerima akun yang SUDAH terdaftar sebagai Owner toko.
 // Pull-only pada login pertama; tidak pernah mengirim antrean lokal dari browser baru.
+export async function cloudSignInOwner(email,password){
+ const cfg=getCloudConfig();
+ const url=cfg.url||'https://wtsheaowviaedwhyiwkk.supabase.co';
+ const key=cfg.key||'sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
+ await configureCloud(url,key,'');
+ if(!client)throw Error('Koneksi aplikasi belum siap.');
+ const pending=await all('syncQueue');
+ if(pending.length)throw Error('Ada perubahan lokal yang belum tersinkron. Login dihentikan agar data tidak tertimpa.');
+ suppressAuthSync=true;
+ const {data,error}=await client.auth.signInWithPassword({email,password});
+ if(error){suppressAuthSync=false;throw error;}
+ session=data.session;
+ try{
+  const boot=await client.rpc('mambo_owner_bootstrap',{p_store_name:'MAMBO KASIR'});
+  if(boot.error)throw boot.error;
+  storeId=boot.data?.store_id||null;
+  if(!storeId)throw Error('Toko Owner tidak ditemukan.');
+  const rows=await cloudPull(), applied=await applyCloudRows(rows);
+  localStorage.setItem('mambo_cloud_config',JSON.stringify({url,key,storeId}));
+  status('online');suppressAuthSync=false;
+  window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:applied}));
+  return {user:data.user,storeId,pulled:rows.length,applied:applied.applied||0};
+ }catch(err){suppressAuthSync=false;await client.auth.signOut();session=null;throw err;}
+}
+export async function cloudRegisterOwner(email,password,storeName){
+ const cfg=getCloudConfig();
+ const url=cfg.url||'https://wtsheaowviaedwhyiwkk.supabase.co';
+ const key=cfg.key||'sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
+ await configureCloud(url,key,'');
+ const {data,error}=await client.auth.signUp({email,password});
+ if(error)throw error;
+ if(!data.session)return {needsConfirmation:true};
+ session=data.session;
+ const boot=await client.rpc('mambo_owner_bootstrap',{p_store_name:storeName});
+ if(boot.error)throw boot.error;
+ storeId=boot.data?.store_id||null;
+ if(!storeId)throw Error('Toko tidak berhasil dibuat.');
+ const rows=await cloudPull();await applyCloudRows(rows);
+ localStorage.setItem('mambo_cloud_config',JSON.stringify({url,key,storeId}));
+ return {needsConfirmation:false,storeId};
+}
+export async function cloudUpdateOwnerProfile({email,password}){
+ await ensureClient();
+ if(!client||!session)throw Error('Sesi Owner tidak aktif.');
+ const updates={};
+ if(email)updates.email=email;
+ if(password)updates.password=password;
+ if(!Object.keys(updates).length)return {updated:false};
+ const {data,error}=await client.auth.updateUser(updates);
+ if(error)throw error;
+ session=data.user?{...session,user:data.user}:session;
+ return {updated:true,email:data.user?.email||session.user?.email};
+}
 export async function cloudSignInExistingOwner(url,key,existingStoreId,email,password){
  const sid=String(existingStoreId||'').trim();
  if(!sid)throw Error('Store ID toko yang sudah ada wajib diisi.');
