@@ -226,21 +226,44 @@ export function startDeviceDataSync(){
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
 document.addEventListener('DOMContentLoaded',()=>{
  const btn=$('#pairDeviceBtn'),code=$('#pairDeviceCode'),msg=$('#pairDeviceMessage');
- if(!btn)return;
- btn.onclick=async()=>{
+ const loginSelect=$('#loginUser'),loginError=$('#loginError');
+ const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const loadRoles=async()=>{
+  if(!devicePaired())return [];
+  const roles=await listDeviceStaffRoles();
+  if(loginSelect)loginSelect.innerHTML=roles.map(r=>'<option value="'+safe(r.id)+'">'+safe(r.title)+'</option>').join('');
+  if($('#loginBtn'))$('#loginBtn').disabled=!roles.length;
+  return roles;
+ };
+ if(devicePaired())loadRoles().catch(e=>{if(loginError)loginError.textContent=e.message;});
+ if(btn)btn.onclick=async()=>{
   btn.disabled=true;msg.textContent='Memasang perangkat…';
   try{
    const result=await pairDevice(code.value.trim(),($('#pairDeviceLabel')?.value||'Perangkat Kasir').trim());
-   const staff=await listDeviceStaff();
-   const loginSelect=$('#loginUser');
-   if(loginSelect){
-    loginSelect.innerHTML=staff.map(x=>'<option value="'+String(x.username).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'">'+String(x.display_name||x.name||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+' — '+(x.app_role==='cashier'?'Kasir':'Supervisor')+'</option>').join('');
-   }
-   if($('#loginBtn'))$('#loginBtn').disabled=!staff.length;
-   msg.textContent=staff.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Browser ini sekarang terdaftar. Silakan pilih akun karyawan dan masukkan PIN.':'Browser berhasil dipasangkan, tetapi belum ada akun karyawan aktif. Buat akun dari HP Owner.';
+   const roles=await loadRoles();
+   msg.textContent=roles.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Jabatan aktif dari Owner sudah dimuat.':'Perangkat berhasil dipasangkan. Owner belum membuat jabatan aktif.';
    code.value='';
-  }
-  catch(e){msg.textContent='Gagal: '+(e.message||e);}
+  }catch(e){msg.textContent='Gagal: '+(e.message||e);}
   finally{btn.disabled=false;}
  };
+ const token=new URLSearchParams(location.search).get('invite');
+ if(token){
+  const card=$('.login-card');
+  const panel=document.createElement('section');panel.className='panel';panel.style.marginTop='16px';
+  panel.innerHTML='<h3>Aktivasi Undangan Karyawan</h3><p id="inviteInfo">Memeriksa undangan…</p><label>Buat password (minimal 8 karakter)</label><input id="invitePassword" type="password" autocomplete="new-password"><label>Ulangi password</label><input id="invitePassword2" type="password" autocomplete="new-password"><button id="inviteAccept" class="primary full" type="button">Aktifkan Akun</button><p id="inviteError" class="error"></p>';
+  card?.prepend(panel);
+  try{
+   const info=await staffInvitationInfo(token);
+   panel.querySelector('#inviteInfo').textContent=info.display_name+' — '+info.job_title+' · '+info.store_name+'. Undangan berlaku sampai '+new Date(info.expires_at).toLocaleString('id-ID')+'.';
+   panel.querySelector('#inviteAccept').onclick=async()=>{
+    const p=panel.querySelector('#invitePassword').value,p2=panel.querySelector('#invitePassword2').value;
+    if(p.length<8){panel.querySelector('#inviteError').textContent='Password minimal 8 karakter.';return;}
+    if(p!==p2){panel.querySelector('#inviteError').textContent='Konfirmasi password tidak sama.';return;}
+    const accept=panel.querySelector('#inviteAccept');accept.disabled=true;
+    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Buka halaman login pada perangkat yang sudah dipasangkan, pilih jabatan '+info.job_title+', lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
+    catch(e){panel.querySelector('#inviteError').textContent=e.message||String(e);}
+    finally{accept.disabled=false;}
+   };
+  }catch(e){panel.querySelector('#inviteInfo').textContent='Undangan tidak dapat digunakan.';panel.querySelector('#inviteError').textContent=e.message||String(e);}
+ }
 });
