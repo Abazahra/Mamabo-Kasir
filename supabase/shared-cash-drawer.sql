@@ -500,90 +500,12 @@ begin
   end if;
   if v_event.event_type='cash_sale' then
    if v_payload->>'status'<>'paid'
-      or coalesce(v_payload->>'total','') !~ '^[0-9]+([.][0-9]+)?
-
-revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
-revoke all on function public.mambo_device_sync_pull(text) from public;
-revoke all on function public.mambo_device_staff_login(text,text,text) from public;
-revoke all on function public.mambo_device_staff_session_check(text,text) from public;
-revoke all on function public.mambo_device_staff_logout(text,text) from public;
-revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
-revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
-revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
-grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
-grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
-
-notify pgrst, 'reload schema';
- then
+      or coalesce(v_payload->>'total','') !~ '^[0-9]+([.][0-9]+)?$' then
     raise exception 'Status atau total penjualan tidak valid untuk konfirmasi laci.';
    end if;
    select coalesce(sum(
      case when lower(trim(coalesce(payment.value->>'method','')))='tunai'
-       and coalesce(payment.value->>'amount','') ~ '^[0-9]+([.][0-9]+)?
-
-revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
-revoke all on function public.mambo_device_sync_pull(text) from public;
-revoke all on function public.mambo_device_staff_login(text,text,text) from public;
-revoke all on function public.mambo_device_staff_session_check(text,text) from public;
-revoke all on function public.mambo_device_staff_logout(text,text) from public;
-revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
-revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
-revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
-grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
-grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
-
-notify pgrst, 'reload schema';
-
+       and coalesce(payment.value->>'amount','') ~ '^[0-9]+([.][0-9]+)?$'
        then (payment.value->>'amount')::numeric else 0 end
    ),0) into v_cash_paid
    from jsonb_array_elements(
@@ -596,46 +518,7 @@ notify pgrst, 'reload schema';
    end if;
   else
    if v_payload->>'source'<>'cash'
-      or coalesce(v_payload->>'amount','') !~ '^[0-9]+([.][0-9]+)?
-
-revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
-revoke all on function public.mambo_device_sync_pull(text) from public;
-revoke all on function public.mambo_device_staff_login(text,text,text) from public;
-revoke all on function public.mambo_device_staff_session_check(text,text) from public;
-revoke all on function public.mambo_device_staff_logout(text,text) from public;
-revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
-revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
-revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
-revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
-revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
-grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
-grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
-grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
-grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
-grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
-
-notify pgrst, 'reload schema';
- then
+      or coalesce(v_payload->>'amount','') !~ '^[0-9]+([.][0-9]+)?$' then
     raise exception 'Bukti pengeluaran bukan pengeluaran tunai yang valid.';
    end if;
    v_source_amount:=(v_payload->>'amount')::numeric;
@@ -647,7 +530,7 @@ notify pgrst, 'reload schema';
 
  update public.mambo_shared_drawer_events set resolution_status=p_resolution where event_id=p_event_id;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
-end $;
+end $$;
 
 revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
 revoke all on function public.mambo_device_sync_pull(text) from public;
