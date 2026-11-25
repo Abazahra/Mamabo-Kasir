@@ -432,7 +432,7 @@ create or replace function public.mambo_shared_drawer_event_resolve(
  p_store_id uuid,p_event_id uuid,p_resolution text,
  p_device_token text default null,p_staff_session_token text default null
 ) returns jsonb language plpgsql security definer set search_path=public,extensions
-as $
+as $$
 declare v_event public.mambo_shared_drawer_events%rowtype; v_staff jsonb;
 begin
  if p_resolution not in ('confirmed','reversed') then raise exception 'Status penyelesaian tidak valid.'; end if;
@@ -452,7 +452,7 @@ begin
  if v_event.resolution_status<>'pending' then raise exception 'Pergerakan kas sudah diselesaikan dan tidak dapat diubah.'; end if;
  update public.mambo_shared_drawer_events set resolution_status=p_resolution where event_id=p_event_id;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
-end $;
+end $$;
 
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
