@@ -269,3 +269,26 @@ revoke all on function public.mambo_device_staff_roles(text) from public;
 grant execute on function public.mambo_device_staff_roles(text) to anon,authenticated;
 revoke all on function public.mambo_device_staff_login(text,text,text,uuid) from public;
 grant execute on function public.mambo_device_staff_login(text,text,text,uuid) to anon,authenticated;
+
+create or replace function public.mambo_device_staff_session_check(p_device_token text,p_staff_session_token text)
+returns jsonb language plpgsql security definer set search_path=public
+as $$
+declare v jsonb;
+begin
+ select jsonb_build_object('id',a.id,'username',a.username,'name',a.display_name,
+  'role',r.permission_role,'job_title',r.title,'active',a.active,'device_id',d.id,'store_id',d.store_id)
+ into v
+ from public.mambo_device_staff_sessions s
+ join public.mambo_cashier_devices d on d.id=s.device_id
+ join public.mambo_staff_accounts a on a.id=s.staff_id
+ join public.mambo_staff_roles r on r.id=a.staff_role_id and r.store_id=a.store_id
+ where s.token_hash=encode(digest(coalesce(p_staff_session_token,''),'sha256'),'hex')
+ and d.token_hash=encode(digest(coalesce(p_device_token,''),'sha256'),'hex')
+ and d.revoked_at is null and s.revoked_at is null and s.expires_at>now()
+ and a.active=true and r.active=true;
+ if v is null then raise exception 'Sesi karyawan tidak berlaku atau jabatan sudah dinonaktifkan. Silakan login ulang.'; end if;
+ return v;
+end $$;
+revoke all on function public.mambo_device_staff_login(text,text,text) from public,anon,authenticated;
+revoke all on function public.mambo_device_staff_session_check(text,text) from public;
+grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
