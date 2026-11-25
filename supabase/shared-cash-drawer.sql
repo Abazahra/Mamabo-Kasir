@@ -453,7 +453,13 @@ create or replace function public.mambo_shared_drawer_event_resolve(
  p_device_token text default null,p_staff_session_token text default null
 ) returns jsonb language plpgsql security definer set search_path=public,extensions
 as $$
-declare v_event public.mambo_shared_drawer_events%rowtype; v_staff jsonb;
+declare
+ v_event public.mambo_shared_drawer_events%rowtype;
+ v_staff jsonb;
+ v_payload jsonb;
+ v_cash_paid numeric(18,2);
+ v_expected numeric(18,2);
+ v_source_amount numeric(18,2);
 begin
  if p_resolution not in ('confirmed','reversed') then raise exception 'Status penyelesaian tidak valid.'; end if;
  select * into v_event from public.mambo_shared_drawer_events
@@ -470,9 +476,179 @@ begin
  end if;
  if v_event.resolution_status=p_resolution then return public.mambo_shared_drawer_snapshot_internal(p_store_id); end if;
  if v_event.resolution_status<>'pending' then raise exception 'Pergerakan kas sudah diselesaikan dan tidak dapat diubah.'; end if;
+
+ -- A cash sale/expense cannot be confirmed by calling this RPC alone.
+ -- The matching source record must already exist in the same store and match the ledger.
+ if p_resolution='confirmed' and v_event.event_type in ('cash_sale','cash_expense') then
+  if coalesce(v_event.source_record_id,'')='' then
+   raise exception 'Bukti transaksi untuk pergerakan kas belum tersedia.';
+  end if;
+  select payload into v_payload
+  from public.mambo_sync_records
+  where store_id=p_store_id
+    and entity=case when v_event.event_type='cash_sale' then 'transactions' else 'operationalExpenses' end
+    and record_id=v_event.source_record_id and deleted=false
+  for update;
+  if not found or jsonb_typeof(v_payload)<>'object'
+     or v_payload->>'id' is distinct from v_event.source_record_id then
+   raise exception 'Bukti transaksi belum tersimpan atau identitas record tidak cocok.';
+  end if;
+  if v_event.device_id is not null and (
+    v_payload->>'userId' is distinct from v_event.actor_id::text
+    or v_payload->>'deviceId' is distinct from v_event.device_id::text
+  ) then
+   raise exception 'Kasir atau perangkat pada bukti transaksi tidak cocok dengan pembuat pergerakan.';
+  end if;
+  if v_event.event_type='cash_sale' then
+   if v_payload->>'status'<>'paid'
+      or coalesce(v_payload->>'total','') !~ '^[0-9]+([.][0-9]+)?
+
+revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
+revoke all on function public.mambo_device_sync_pull(text) from public;
+revoke all on function public.mambo_device_staff_login(text,text,text) from public;
+revoke all on function public.mambo_device_staff_session_check(text,text) from public;
+revoke all on function public.mambo_device_staff_logout(text,text) from public;
+revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
+revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
+revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
+grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
+grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
+
+notify pgrst, 'reload schema';
+ then
+    raise exception 'Status atau total penjualan tidak valid untuk konfirmasi laci.';
+   end if;
+   select coalesce(sum(
+     case when lower(trim(coalesce(p->>'method','')))='tunai'
+       and coalesce(p->>'amount','') ~ '^[0-9]+([.][0-9]+)?
+
+revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
+revoke all on function public.mambo_device_sync_pull(text) from public;
+revoke all on function public.mambo_device_staff_login(text,text,text) from public;
+revoke all on function public.mambo_device_staff_session_check(text,text) from public;
+revoke all on function public.mambo_device_staff_logout(text,text) from public;
+revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
+revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
+revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
+grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
+grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
+
+notify pgrst, 'reload schema';
+
+       then (p->>'amount')::numeric else 0 end
+   ),0) into v_cash_paid
+   from jsonb_array_elements(
+     case when jsonb_typeof(v_payload->'payments')='array'
+       then v_payload->'payments' else '[]'::jsonb end
+   ) as p;
+   v_expected:=least((v_payload->>'total')::numeric,v_cash_paid);
+   if v_expected<=0 or abs(v_expected-v_event.amount)>0.01 then
+    raise exception 'Nominal tunai pada bukti penjualan tidak cocok dengan pergerakan laci.';
+   end if;
+  else
+   if v_payload->>'source'<>'cash'
+      or coalesce(v_payload->>'amount','') !~ '^[0-9]+([.][0-9]+)?
+
+revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
+revoke all on function public.mambo_device_sync_pull(text) from public;
+revoke all on function public.mambo_device_staff_login(text,text,text) from public;
+revoke all on function public.mambo_device_staff_session_check(text,text) from public;
+revoke all on function public.mambo_device_staff_logout(text,text) from public;
+revoke all on function public.mambo_shared_drawer_open(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from public;
+revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
+revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
+revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
+grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
+grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
+grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_open(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,numeric,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
+
+notify pgrst, 'reload schema';
+ then
+    raise exception 'Bukti pengeluaran bukan pengeluaran tunai yang valid.';
+   end if;
+   v_source_amount:=(v_payload->>'amount')::numeric;
+   if abs(v_source_amount-v_event.amount)>0.01 then
+    raise exception 'Nominal bukti pengeluaran tidak cocok dengan pergerakan laci.';
+   end if;
+  end if;
+ end if;
+
  update public.mambo_shared_drawer_events set resolution_status=p_resolution where event_id=p_event_id;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
-end $$;
+end $;
 
 revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
 revoke all on function public.mambo_device_sync_pull(text) from public;
