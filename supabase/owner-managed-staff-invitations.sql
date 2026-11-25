@@ -26,9 +26,10 @@ revoke all on public.mambo_staff_roles from public,anon,authenticated;
 
 -- Preserve current Kasir/Supervisor accounts by mapping their existing permission class.
 insert into public.mambo_staff_roles(store_id,title,permission_role)
-select distinct store_id,case when app_role='cashier' then 'Kasir' else 'Supervisor' end,app_role
-from public.mambo_staff_accounts
-on conflict(store_id,lower(title)) do nothing;
+select distinct a.store_id,case when a.app_role='cashier' then 'Kasir' else 'Supervisor' end,a.app_role
+from public.mambo_staff_accounts a
+where not exists(select 1 from public.mambo_staff_roles r where r.store_id=a.store_id
+ and lower(r.title)=lower(case when a.app_role='cashier' then 'Kasir' else 'Supervisor' end));
 update public.mambo_staff_accounts a
 set staff_role_id=r.id
 from public.mambo_staff_roles r
