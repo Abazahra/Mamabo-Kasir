@@ -21,7 +21,7 @@ jobs:
           node-version: "22"
       - name: Check JavaScript syntax
         run: |
-          for file in js/app.js js/cloud-sync.js js/device-pairing.js js/expenses.js js/pos.js js/stage4.js; do
+          for file in js/app.js js/cloud-sync.js js/device-pairing.js js/staff-accounts.js js/expenses.js js/pos.js js/stage4.js; do
             echo "Checking $file"
             node --check "$file"
           done
@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from pglast import parse_sql
-          for path in ("supabase/schema.sql", "supabase/device-pairing.sql", "supabase/staff-accounts.sql", "supabase/shared-cash-drawer.sql", "supabase/shared-cash-drawer-confirmation-guard.sql"):
+          for path in ("supabase/schema.sql", "supabase/device-pairing.sql", "supabase/staff-accounts.sql", "supabase/shared-cash-drawer.sql", "supabase/shared-cash-drawer-confirmation-guard.sql", "supabase/owner-managed-staff-invitations.sql"):
               sql = Path(path).read_text()
               parse_sql(sql)
               print(f"PostgreSQL SQL syntax passed: {path}")
