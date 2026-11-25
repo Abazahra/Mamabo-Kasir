@@ -309,15 +309,15 @@ revoke all on public.mambo_shared_drawer_settings from public,anon,authenticated
 
 create or replace function public.mambo_shared_drawer_supervisor_status(p_store_id uuid)
 returns boolean language plpgsql security definer set search_path=public
-as $
+as $$
 begin
  if auth.uid() is null or not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
  return coalesce((select supervisor_control from public.mambo_shared_drawer_settings where store_id=p_store_id),false);
-end $;
+end $$;
 
 create or replace function public.mambo_shared_drawer_supervisor_setting(p_store_id uuid,p_enabled boolean)
 returns boolean language plpgsql security definer set search_path=public
-as $
+as $$
 begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then
   raise exception 'Hanya Owner yang dapat mengubah izin Supervisor.';
@@ -326,13 +326,13 @@ begin
  values(p_store_id,coalesce(p_enabled,false),now())
  on conflict(store_id) do update set supervisor_control=excluded.supervisor_control,updated_at=now();
  return coalesce(p_enabled,false);
-end $;
+end $$;
 
 create or replace function public.mambo_shared_drawer_supervisor_control(
  p_device_token text,p_staff_session_token text,p_action text,
  p_opening_cash numeric default null,p_counted_cash numeric default null,p_actor_name text default 'Supervisor'
 ) returns jsonb language plpgsql security definer set search_path=public,extensions
-as $
+as $$
 declare v_staff jsonb;v_store uuid;v_drawer public.mambo_shared_drawers%rowtype;v_snapshot jsonb;v_expected numeric(18,2);
 begin
  v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
@@ -360,7 +360,7 @@ begin
    'difference',p_counted_cash-v_expected,'closed_at',now());
  else raise exception 'Aksi Supervisor tidak dikenal.'; end if;
 exception when unique_violation then raise exception 'Laci kas bersama toko sudah terbuka.';
-end $;
+end $$;
 
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
