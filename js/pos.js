@@ -1,6 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
 import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl} from './device-pairing.js?v=shared-drawer-4';
-import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents} from './cloud-sync.js?v=shared-drawer-4';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents} from './cloud-sync.js?v=shared-drawer-4';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
@@ -163,7 +163,23 @@ export async function mountShift(root,user){
      return;
     }
     p.innerHTML='<div class="grid"><div class="stat"><span>Modal awal</span><strong>'+rp(snap.opening_cash)+'</strong></div><div class="stat"><span>Penjualan tunai bersama</span><strong>'+rp(snap.cash_sales)+'</strong></div><div class="stat"><span>Kas masuk</span><strong>'+rp(snap.cash_in)+'</strong></div><div class="stat"><span>Kas keluar</span><strong>'+rp(snap.cash_out)+'</strong></div></div><div class="grand-total">Saldo kas bersama: '+rp(snap.expected_cash)+'</div><p>Dibuka: '+esc(snap.opened_at)+' oleh '+esc(snap.opened_by)+'</p><h3>Aktivitas Laci Kas Bersama</h3><div id="ownerDrawerEvents"></div><div class="actions"><button class="secondary" id="ownerCashIn">Kas Masuk</button><button class="secondary" id="ownerCashOut">Kas Keluar</button></div><div class="field"><label>Uang fisik saat tutup</label><input id="sharedCounted" type="number" min="0"></div><button class="danger" id="closeShared">Tutup Laci Kas Bersama</button><div id="sharedCloseResult"></div><p class="muted">Kasir tidak dapat menutup laci. Penutupan menghitung saldo ledger server.</p>';
-    $('#ownerDrawerEvents').innerHTML=(snap.events||[]).slice(-40).reverse().map(e=>'<p><b>'+esc(e.actor_name)+'</b> · '+esc(e.event_type)+' · '+rp(e.amount)+' · '+esc(e.note||'')+'</p>').join('')||'<p class="muted">Belum ada aktivitas.</p>';
+    const renderOwnerDrawerEvents=async()=>{
+ const review=await reviewSharedDrawerPendingEvents(),events=(review.snapshot?.events||[]).slice(-60).reverse();
+ $('#ownerDrawerEvents').innerHTML=events.map(e=>{
+  const pending=e.resolution_status==='pending',check=review.pending.find(x=>x.event_id===e.event_id);
+  return '<article class="panel"><b>'+esc(e.actor_name)+'</b> · '+esc(e.event_type)+' · '+rp(e.amount)+'<p>'+esc(e.note||'')+'</p><p class="muted">'+(pending?'MENUNGGU KONFIRMASI':'confirmed'===e.resolution_status?'Terkonfirmasi':esc(e.resolution_status))+(pending?(check?.synced_record_found?' · Record ditemukan di sinkronisasi pusat':' · Record belum ditemukan di sinkronisasi pusat'):'')+'</p>'+(pending?'<div class="actions">'+(check?.synced_record_found?'<button class="primary" data-resolve-event="'+e.event_id+'" data-resolution="confirmed">Konfirmasi tersimpan</button>':'<button class="danger" data-resolve-event="'+e.event_id+'" data-resolution="reversed">Batalkan setelah verifikasi</button>')+'</div>':'')+'</article>';
+ }).join('')||'<p class="muted">Belum ada aktivitas.</p>';
+ $('#ownerDrawerEvents').querySelectorAll('[data-resolve-event]').forEach(btn=>btn.onclick=async()=>{
+  const resolution=btn.dataset.resolution;
+  const message=resolution==='confirmed'?'Konfirmasi bahwa transaksi/pengeluaran ini benar-benar sudah tersimpan di data pusat?':'Pastikan transaksi/pengeluaran tidak tersimpan pada perangkat kasir mana pun. Pergerakan ini akan dibatalkan dari saldo laci. Lanjutkan?';
+  if(!confirm(message))return;
+  btn.disabled=true;
+  try{await resolveOwnerDrawerEvent(btn.dataset.resolveEvent,resolution);toast(resolution==='confirmed'?'Pergerakan dikonfirmasi.':'Pergerakan dibatalkan.');await mountShift(root,user);}
+  catch(err){btn.disabled=false;toast('Tidak dapat menyelesaikan pergerakan: '+(err.message||err));}
+ });
+};
+try{await renderOwnerDrawerEvents();}catch(err){$('#ownerDrawerEvents').innerHTML='<div class="notice">Pemeriksaan pergerakan tertunda gagal: '+esc(err.message||err)+'</div>';}
+
     for(const [id,type] of [['ownerCashIn','cash_in'],['ownerCashOut','cash_out']])$('#'+id).onclick=async()=>{const amount=Number(prompt('Nominal (Rp)'));if(!Number.isFinite(amount)||amount<=0)return toast('Nominal tidak valid');const note=prompt('Keterangan wajib diisi');if(!note?.trim())return toast('Keterangan wajib diisi');const event={eventId:uid(),type,amount,note:note.trim()},pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]');pending.push(event);localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(pending));try{await appendOwnerDrawerEvent(event,user.name);localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]').filter(x=>x.eventId!==event.eventId)));toast('Pergerakan kas tercatat.');await mountShift(root,user);}catch(err){toast('Pergerakan kas menunggu sinkronisasi: '+(err.message||err));}};
  $('#closeShared').onclick=async()=>{if(JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]').length)return toast('Masih ada pergerakan kas Owner yang belum tersinkron. Laci tidak boleh ditutup.');const counted=Number($('#sharedCounted').value);if(!Number.isFinite(counted)||counted<0)return toast('Isi jumlah uang fisik');if(!confirm('Tutup laci kas bersama untuk seluruh perangkat?'))return;try{const result=await closeSharedDrawer(counted,user.name);$('#sharedCloseResult').innerHTML='<h3>Ringkasan Penutupan</h3><p>Kas sistem: '+rp(result.expected_cash)+'</p><p>Kas fisik: '+rp(result.counted_cash)+'</p><h3>Selisih: '+rp(result.difference)+'</h3>';toast('Laci kas bersama ditutup.');}catch(err){toast('Gagal menutup laci: '+(err.message||err));}};
     return;
