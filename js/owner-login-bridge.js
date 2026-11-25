@@ -1,6 +1,6 @@
 import { all } from './db.js?v=operational-normalization-2';
 import { createUser } from './auth.js?v=operational-normalization-2';
-import { cloudSignInOwner } from './cloud-sync.js?v=owner-job-invites-1';
+import { cloudSignInOwner } from './cloud-sync.js?v=owner-login-fix-2';
 
 export async function loginOwner(button) {
   const email = document.querySelector('#ownerCloudEmail')?.value?.trim() || '';
