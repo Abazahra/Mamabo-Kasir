@@ -1,6 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorExpenseCategoryAccess} from './device-pairing.js?v=shared-drawer-5';
-import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,supervisorExpenseCategoryStatus} from './cloud-sync.js?v=shared-drawer-6';
+import {sharedDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorExpenseCategoryAccess} from './device-pairing.js?v=shared-drawer-6';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,supervisorExpenseCategoryStatus} from './cloud-sync.js?v=shared-drawer-7';
 const $=s=>document.querySelector(s),rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'});
