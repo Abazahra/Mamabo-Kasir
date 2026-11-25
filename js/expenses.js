@@ -1,6 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot,appendSharedDrawerEvent} from './device-pairing.js?v=shared-drawer-1';
-import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,appendOwnerDrawerEvent} from './cloud-sync.js?v=shared-drawer-1';
+import {sharedDrawerSnapshot,appendSharedDrawerEvent} from './device-pairing.js?v=shared-drawer-2';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,appendOwnerDrawerEvent} from './cloud-sync.js?v=shared-drawer-2';
 const $=s=>document.querySelector(s),rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const date=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jakarta'});
