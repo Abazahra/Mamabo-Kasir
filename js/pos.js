@@ -1,6 +1,6 @@
 import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
-import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl} from './device-pairing.js?v=shared-drawer-7';
-import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents} from './cloud-sync.js?v=shared-drawer-8';
+import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl,syncSharedDrawerSourceRecord} from './device-pairing.js?v=shared-drawer-7';
+import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents,syncOwnerSharedDrawerSourceRecord} from './cloud-sync.js?v=shared-drawer-8';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
@@ -39,7 +39,14 @@ export async function mountPOS(root,user){
  }
  try{
  await atomic(['products','transactions','movements','shifts','receivables'],stores=>{const reqs=items.map(item=>{const r=stores.products.get(item.id);r.onsuccess=()=>{const p=r.result;if(!p||p.stock<item.qty){try{stores.products.transaction.abort()}catch{}return;}p.stock-=item.qty;stores.products.put(p);stores.movements.put({id:uid(),productId:p.id,productName:p.name,type:'penjualan',delta:-item.qty,note:'Struk '+receipt,time:stamp});};});stores.transactions.put({id,receipt,userId:user.id,userName:user.name,deviceId,deviceLabel:deviceContext()?.label||null,shiftId:shift.id,sharedDrawer:!!shift.shared,customerId:customer?.id||null,customerName:customer?.name||'Pelanggan Umum',items,total:t.total,subtotal:t.sub,discount:t.d,tax:t.vat,payments:pays,time:stamp,status:'paid'});const sr=stores.shifts.get(shift.id);sr.onsuccess=()=>{const s=sr.result;if(s){s.sales=(s.sales||0)+t.total;s.cashSales=(s.cashSales||0)+Math.min(t.total,pays.filter(x=>x.method==='Tunai').reduce((a,x)=>a+x.amount,0));stores.shifts.put(s)}};if(m==='Kasbon')stores.receivables.put({id:uid(),transactionId:id,customerId:customer.id,customerName:customer.name,amount:t.total,balance:t.total,status:'open',time:stamp});});
-  if(sharedCash){try{if(pairedDevice)await resolveSharedDrawerEvent(id,'confirmed');else await resolveOwnerDrawerEvent(id,'confirmed');drawerResolved=true;}catch(resolveError){/* Keep local queue; reconciliation retries. */}}
+  if(sharedCash){try{
+   const savedTransaction=(await all('transactions')).find(row=>String(row.id)===String(id));
+   if(!savedTransaction)throw Error('Transaksi lokal belum ditemukan untuk rekonsiliasi laci.');
+   if(pairedDevice)await syncSharedDrawerSourceRecord('transactions',savedTransaction);
+   else await syncOwnerSharedDrawerSourceRecord('transactions',savedTransaction);
+   if(pairedDevice)await resolveSharedDrawerEvent(id,'confirmed');else await resolveOwnerDrawerEvent(id,'confirmed');
+   drawerResolved=true;
+  }catch(resolveError){/* Keep local queue and pending ledger event; reconciliation retries. */}}
  }catch(localError){
   if(sharedCash){try{if(pairedDevice)await resolveSharedDrawerEvent(id,'reversed');else await resolveOwnerDrawerEvent(id,'reversed');}catch(resolveError){/* Pending server event blocks drawer close. */}}
   throw localError;
