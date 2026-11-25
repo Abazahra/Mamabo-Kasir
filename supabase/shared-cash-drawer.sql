@@ -477,8 +477,7 @@ begin
  if v_event.resolution_status=p_resolution then return public.mambo_shared_drawer_snapshot_internal(p_store_id); end if;
  if v_event.resolution_status<>'pending' then raise exception 'Pergerakan kas sudah diselesaikan dan tidak dapat diubah.'; end if;
 
- -- A cash sale/expense cannot be confirmed by calling this RPC alone.
- -- The matching source record must already exist in the same store and match the ledger.
+ -- Confirm only when the matching source record is already persisted in this store.
  if p_resolution='confirmed' and v_event.event_type in ('cash_sale','cash_expense') then
   if coalesce(v_event.source_record_id,'')='' then
    raise exception 'Bukti transaksi untuk pergerakan kas belum tersedia.';
@@ -544,8 +543,8 @@ notify pgrst, 'reload schema';
     raise exception 'Status atau total penjualan tidak valid untuk konfirmasi laci.';
    end if;
    select coalesce(sum(
-     case when lower(trim(coalesce(p->>'method','')))='tunai'
-       and coalesce(p->>'amount','') ~ '^[0-9]+([.][0-9]+)?
+     case when lower(trim(coalesce(payment.value->>'method','')))='tunai'
+       and coalesce(payment.value->>'amount','') ~ '^[0-9]+([.][0-9]+)?
 
 revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
 revoke all on function public.mambo_device_sync_pull(text) from public;
@@ -585,12 +584,12 @@ grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,tex
 
 notify pgrst, 'reload schema';
 
-       then (p->>'amount')::numeric else 0 end
+       then (payment.value->>'amount')::numeric else 0 end
    ),0) into v_cash_paid
    from jsonb_array_elements(
      case when jsonb_typeof(v_payload->'payments')='array'
        then v_payload->'payments' else '[]'::jsonb end
-   ) as p;
+   ) as payment(value);
    v_expected:=least((v_payload->>'total')::numeric,v_cash_paid);
    if v_expected<=0 or abs(v_expected-v_event.amount)>0.01 then
     raise exception 'Nominal tunai pada bukti penjualan tidak cocok dengan pergerakan laci.';
