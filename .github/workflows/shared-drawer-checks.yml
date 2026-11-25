@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["feat/shared-cash-drawer"]
+    branches: ["feat/shared-cash-drawer", "feat/owner-managed-job-invitations"]
 
 permissions:
   contents: read
