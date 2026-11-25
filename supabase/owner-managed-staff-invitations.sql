@@ -224,3 +224,48 @@ grant execute on function public.mambo_staff_invitation_accept(text,text) to ano
 grant execute on function public.mambo_device_staff_list(text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 notify pgrst,'reload schema';
+
+create or replace function public.mambo_device_staff_roles(p_device_token text)
+returns jsonb language plpgsql security definer set search_path=public
+as $$
+declare v_store uuid; v_result jsonb;
+begin
+ select store_id into v_store from public.mambo_cashier_devices
+ where token_hash=encode(digest(coalesce(p_device_token,''),'sha256'),'hex') and revoked_at is null;
+ if v_store is null then raise exception 'Perangkat tidak valid atau telah dicabut.'; end if;
+ select coalesce(jsonb_agg(jsonb_build_object('id',id,'title',title) order by title),'[]'::jsonb)
+ into v_result from public.mambo_staff_roles where store_id=v_store and active=true;
+ return v_result;
+end $$;
+
+create or replace function public.mambo_device_staff_login(p_device_token text,p_username text,p_pin text,p_role_id uuid)
+returns jsonb language plpgsql security definer set search_path=public,extensions
+as $$
+declare v_device public.mambo_cashier_devices%rowtype; a public.mambo_staff_accounts%rowtype;
+ v_session text; v_role public.mambo_staff_roles%rowtype;
+begin
+ select * into v_device from public.mambo_cashier_devices
+ where token_hash=encode(digest(coalesce(p_device_token,''),'sha256'),'hex') and revoked_at is null;
+ if not found then raise exception 'Perangkat tidak valid atau telah dicabut.'; end if;
+ select * into a from public.mambo_staff_accounts where store_id=v_device.store_id
+ and lower(username)=lower(trim(coalesce(p_username,''))) and active=true;
+ if not found or a.staff_role_id is distinct from p_role_id
+   or (a.password_hash is null and a.pin_hash<>crypt(coalesce(p_pin,''),a.pin_hash))
+   or (a.password_hash is not null and a.password_hash<>crypt(coalesce(p_pin,''),a.password_hash)) then
+  raise exception 'Jabatan, username, atau password tidak sesuai.';
+ end if;
+ select * into v_role from public.mambo_staff_roles where id=a.staff_role_id and store_id=a.store_id and active=true;
+ if not found then raise exception 'Jabatan akun ini sudah tidak aktif. Hubungi Owner.'; end if;
+ v_session:=encode(gen_random_bytes(32),'hex');
+ insert into public.mambo_device_staff_sessions(token_hash,store_id,device_id,staff_id,expires_at)
+ values(encode(digest(v_session,'sha256'),'hex'),v_device.store_id,v_device.id,a.id,now()+interval '12 hours');
+ update public.mambo_cashier_devices set last_seen_at=now() where id=v_device.id;
+ update public.mambo_staff_accounts set last_login_at=now() where id=a.id;
+ return jsonb_build_object('id',a.id,'username',a.username,'name',a.display_name,'role',v_role.permission_role,
+  'job_title',v_role.title,'active',true,'staff_session_token',v_session,'staff_session_expires_at',now()+interval '12 hours',
+  'device_id',v_device.id,'store_id',v_device.store_id);
+end $$;
+revoke all on function public.mambo_device_staff_roles(text) from public;
+grant execute on function public.mambo_device_staff_roles(text) to anon,authenticated;
+revoke all on function public.mambo_device_staff_login(text,text,text,uuid) from public;
+grant execute on function public.mambo_device_staff_login(text,text,text,uuid) to anon,authenticated;
