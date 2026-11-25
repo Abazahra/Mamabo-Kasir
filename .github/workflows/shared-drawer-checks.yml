@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from pglast import parse_sql
-          for path in ("supabase/schema.sql", "supabase/device-pairing.sql", "supabase/staff-accounts.sql", "supabase/shared-cash-drawer.sql"):
+          for path in ("supabase/schema.sql", "supabase/device-pairing.sql", "supabase/staff-accounts.sql", "supabase/shared-cash-drawer.sql", "supabase/shared-cash-drawer-confirmation-guard.sql"):
               sql = Path(path).read_text()
               parse_sql(sql)
               print(f"PostgreSQL SQL syntax passed: {path}")
