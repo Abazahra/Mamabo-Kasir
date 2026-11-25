@@ -223,6 +223,15 @@ export function startDeviceDataSync(){
  window.addEventListener('online',tick);
 }
 
+
+export async function updateDeviceStaffProfile(displayName,newPassword=''){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi karyawan perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_device_staff_update_self',{p_device_token:saved.token,p_staff_session_token:session.token,p_display_name:displayName,p_new_password:newPassword||null});
+ if(error)throw error;
+ return data;
+}
+
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
 document.addEventListener('DOMContentLoaded',()=>{
  const btn=$('#pairDeviceBtn'),code=$('#pairDeviceCode'),msg=$('#pairDeviceMessage');
