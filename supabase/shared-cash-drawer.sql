@@ -383,33 +383,33 @@ end $$;
 -- Separate Owner-controlled permission for expanded operational-expense categories.
 create or replace function public.mambo_shared_drawer_supervisor_expense_setting_status(p_store_id uuid)
 returns boolean language plpgsql security definer set search_path=public
-as $
+as $$
 begin
  if auth.uid() is null or not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
  return coalesce((select supervisor_expense_categories from public.mambo_shared_drawer_settings where store_id=p_store_id),false);
-end $;
+end $$;
 
 create or replace function public.mambo_shared_drawer_supervisor_expense_setting(p_store_id uuid,p_enabled boolean)
 returns boolean language plpgsql security definer set search_path=public
-as $
+as $$
 begin
  if auth.uid() is null or not public.mambo_is_owner(p_store_id) then raise exception 'Hanya Owner yang dapat mengubah izin kategori Supervisor.'; end if;
  insert into public.mambo_shared_drawer_settings(store_id,supervisor_expense_categories,updated_at)
  values(p_store_id,coalesce(p_enabled,false),now())
  on conflict(store_id) do update set supervisor_expense_categories=excluded.supervisor_expense_categories,updated_at=now();
  return coalesce(p_enabled,false);
-end $;
+end $$;
 
 create or replace function public.mambo_shared_drawer_supervisor_expense_status(p_device_token text,p_staff_session_token text)
 returns boolean language plpgsql security definer set search_path=public
-as $
+as $$
 declare v_staff jsonb; v_store uuid;
 begin
  v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
  if coalesce(v_staff->>'role','')<>'supervisor' then return false; end if;
  v_store:=(v_staff->>'store_id')::uuid;
  return coalesce((select supervisor_expense_categories from public.mambo_shared_drawer_settings where store_id=v_store),false);
-end $;
+end $$;
 
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
