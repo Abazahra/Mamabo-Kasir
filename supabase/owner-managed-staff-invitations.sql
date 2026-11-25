@@ -189,6 +189,7 @@ begin
  from public.mambo_staff_roles r where a.id=p_staff_id and a.store_id=p_store_id and r.id=a.staff_role_id
  returning a.username,r.title into v_username,v_title;
  if v_username is null then raise exception 'Akun karyawan tidak ditemukan.'; end if;
+ update public.mambo_device_staff_sessions set revoked_at=now() where staff_id=p_staff_id and revoked_at is null;
  return jsonb_build_object('invite_token',v_token,'expires_at',now()+interval '7 days','username',v_username,'job_title',v_title);
 end $$;
 
@@ -324,7 +325,7 @@ as $$
 begin
  if tg_table_name='mambo_staff_accounts' then
   if old.active is distinct from new.active or old.staff_role_id is distinct from new.staff_role_id
-     or old.password_hash is distinct from new.password_hash then
+     then
    update public.mambo_device_staff_sessions set revoked_at=now()
    where staff_id=new.id and revoked_at is null;
   end if;
