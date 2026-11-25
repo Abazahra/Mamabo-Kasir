@@ -30,16 +30,31 @@ export async function listDeviceStaff(){
  if(error)throw error;
  return Array.isArray(data)?data:[];
 }
-const STAFF_SESSION_KEY='mambo_device_staff_session';
-export async function loginDeviceStaff(username,pin){
+export async function listDeviceStaffRoles(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
- const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin});
+ const {data,error}=await client.rpc('mambo_device_staff_roles',{p_device_token:saved.token});
+ if(error)throw error;
+ return Array.isArray(data)?data:[];
+}
+export async function acceptStaffInvitation(token,password){
+ const {data,error}=await client.rpc('mambo_staff_invitation_accept',{p_token:token,p_password:password});
+ if(error)throw error;return data;
+}
+async function staffInvitationInfo(token){
+ const {data,error}=await client.rpc('mambo_staff_invitation_info',{p_token:token});
+ if(error)throw error;return data;
+}
+const STAFF_SESSION_KEY='mambo_device_staff_session';
+export async function loginDeviceStaff(username,pin,roleId){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
+ const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin,p_role_id:roleId});
  if(error)throw error;
  if(!data?.id||!data?.role||!data?.staff_session_token)throw Error('Server belum mengaktifkan sesi kasir bersama. Jalankan migrasi shared-cash-drawer.sql terlebih dahulu.');
  const session={token:data.staff_session_token,expiresAt:data.staff_session_expires_at,staffId:data.id,username:data.username,deviceId:data.device_id,storeId:data.store_id};
  localStorage.setItem(STAFF_SESSION_KEY,JSON.stringify(session));
- return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
+ return {id:data.id,name:data.name,role:data.role,jobTitle:data.job_title,username:data.username,active:true,sharedDrawerSession:true};
 }
 export async function restoreDeviceStaffSession(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -48,7 +63,7 @@ export async function restoreDeviceStaffSession(){
  const {data,error}=await client.rpc('mambo_device_staff_session_check',{p_device_token:saved.token,p_staff_session_token:session.token});
  if(error){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
  if(!data?.active||String(data.id)!==String(session.staffId)){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
- return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
+ return {id:data.id,name:data.name,role:data.role,jobTitle:data.job_title,username:data.username,active:true,sharedDrawerSession:true};
 }
 export async function logoutDeviceStaff(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -208,24 +223,56 @@ export function startDeviceDataSync(){
  window.addEventListener('online',tick);
 }
 
+
+export async function updateDeviceStaffProfile(displayName,newPassword=''){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi karyawan perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_device_staff_update_self',{p_device_token:saved.token,p_staff_session_token:session.token,p_display_name:displayName,p_new_password:newPassword||null});
+ if(error)throw error;
+ return data;
+}
+
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
 document.addEventListener('DOMContentLoaded',()=>{
  const btn=$('#pairDeviceBtn'),code=$('#pairDeviceCode'),msg=$('#pairDeviceMessage');
- if(!btn)return;
- btn.onclick=async()=>{
+ const loginSelect=$('#loginUser'),loginError=$('#loginError');
+ const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const loadRoles=async()=>{
+  if(!devicePaired())return [];
+  const roles=await listDeviceStaffRoles();
+  if(loginSelect)loginSelect.innerHTML=roles.map(r=>'<option value="'+safe(r.id)+'">'+safe(r.title)+'</option>').join('');
+  if($('#loginBtn'))$('#loginBtn').disabled=!roles.length;
+  return roles;
+ };
+ if(devicePaired())loadRoles().catch(e=>{if(loginError)loginError.textContent=e.message;});
+ if(btn)btn.onclick=async()=>{
   btn.disabled=true;msg.textContent='Memasang perangkat…';
   try{
    const result=await pairDevice(code.value.trim(),($('#pairDeviceLabel')?.value||'Perangkat Kasir').trim());
-   const staff=await listDeviceStaff();
-   const loginSelect=$('#loginUser');
-   if(loginSelect){
-    loginSelect.innerHTML=staff.map(x=>'<option value="'+String(x.username).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'">'+String(x.display_name||x.name||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+' — '+(x.app_role==='cashier'?'Kasir':'Supervisor')+'</option>').join('');
-   }
-   if($('#loginBtn'))$('#loginBtn').disabled=!staff.length;
-   msg.textContent=staff.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Browser ini sekarang terdaftar. Silakan pilih akun karyawan dan masukkan PIN.':'Browser berhasil dipasangkan, tetapi belum ada akun karyawan aktif. Buat akun dari HP Owner.';
+   const roles=await loadRoles();
+   msg.textContent=roles.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Jabatan aktif dari Owner sudah dimuat.':'Perangkat berhasil dipasangkan. Owner belum membuat jabatan aktif.';
    code.value='';
-  }
-  catch(e){msg.textContent='Gagal: '+(e.message||e);}
+  }catch(e){msg.textContent='Gagal: '+(e.message||e);}
   finally{btn.disabled=false;}
  };
+ const token=new URLSearchParams(location.search).get('invite');
+ if(token){
+  const card=$('.login-card');
+  const panel=document.createElement('section');panel.className='panel';panel.style.marginTop='16px';
+  panel.innerHTML='<h3>Aktivasi Undangan Karyawan</h3><p id="inviteInfo">Memeriksa undangan…</p><label>Buat password (minimal 8 karakter)</label><input id="invitePassword" type="password" autocomplete="new-password"><label>Ulangi password</label><input id="invitePassword2" type="password" autocomplete="new-password"><button id="inviteAccept" class="primary full" type="button">Aktifkan Akun</button><p id="inviteError" class="error"></p>';
+  card?.prepend(panel);
+  try{
+   const info=await staffInvitationInfo(token);
+   panel.querySelector('#inviteInfo').textContent=info.display_name+' — '+info.job_title+' · '+info.store_name+'. Undangan berlaku sampai '+new Date(info.expires_at).toLocaleString('id-ID')+'.';
+   panel.querySelector('#inviteAccept').onclick=async()=>{
+    const p=panel.querySelector('#invitePassword').value,p2=panel.querySelector('#invitePassword2').value;
+    if(p.length<8){panel.querySelector('#inviteError').textContent='Password minimal 8 karakter.';return;}
+    if(p!==p2){panel.querySelector('#inviteError').textContent='Konfirmasi password tidak sama.';return;}
+    const accept=panel.querySelector('#inviteAccept');accept.disabled=true;
+    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Buka halaman login pada perangkat yang sudah dipasangkan, pilih jabatan '+info.job_title+', lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
+    catch(e){panel.querySelector('#inviteError').textContent=e.message||String(e);}
+    finally{accept.disabled=false;}
+   };
+  }catch(e){panel.querySelector('#inviteInfo').textContent='Undangan tidak dapat digunakan.';panel.querySelector('#inviteError').textContent=e.message||String(e);}
+ }
 });
