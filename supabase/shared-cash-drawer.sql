@@ -454,6 +454,8 @@ begin
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
 end $$;
 
+revoke all on function public.mambo_device_sync_push(text,jsonb,boolean) from public;
+revoke all on function public.mambo_device_sync_pull(text) from public;
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
 revoke all on function public.mambo_device_staff_logout(text,text) from public;
@@ -470,6 +472,8 @@ revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_sta
 revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
 revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
+grant execute on function public.mambo_device_sync_push(text,jsonb,boolean) to anon,authenticated;
+grant execute on function public.mambo_device_sync_pull(text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
