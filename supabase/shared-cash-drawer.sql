@@ -45,9 +45,13 @@ create table if not exists public.mambo_shared_drawer_events (
   actor_name text not null,
   device_id uuid,
   note text,
+  resolution_status text not null default 'confirmed' check (resolution_status in ('pending','confirmed','reversed')),
   occurred_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+alter table public.mambo_shared_drawer_events
+ add column if not exists resolution_status text not null default 'confirmed'
+ check (resolution_status in ('pending','confirmed','reversed'));
 create index if not exists mambo_drawer_events_store_time
   on public.mambo_shared_drawer_events(store_id, occurred_at);
 create index if not exists mambo_drawer_events_drawer
@@ -208,9 +212,10 @@ begin
  where store_id=(v_staff->>'store_id')::uuid and status='open' for update;
  if not found then raise exception 'Laci kas bersama belum dibuka oleh Owner.'; end if;
  insert into public.mambo_shared_drawer_events(event_id,store_id,drawer_id,event_type,amount,
-   source_record_id,actor_id,actor_name,device_id,note)
+   source_record_id,actor_id,actor_name,device_id,note,resolution_status)
  values(p_event_id,(v_staff->>'store_id')::uuid,v_drawer.id,p_event_type,p_amount,
-   p_source_record_id,(v_staff->>'id')::uuid,v_staff->>'name',(v_staff->>'device_id')::uuid,p_note)
+   p_source_record_id,(v_staff->>'id')::uuid,v_staff->>'name',(v_staff->>'device_id')::uuid,p_note,
+   case when p_event_type in ('cash_sale','cash_expense') then 'pending' else 'confirmed' end)
  on conflict(event_id) do nothing;
  return public.mambo_shared_drawer_snapshot_internal((v_staff->>'store_id')::uuid);
 end $$;
@@ -225,17 +230,18 @@ begin
  where store_id=p_store_id and status='open' order by opened_at desc limit 1;
  if not found then return jsonb_build_object('open',false,'store_id',p_store_id); end if;
  select
-  coalesce(sum(amount) filter(where event_type='cash_sale'),0),
-  coalesce(sum(amount) filter(where event_type='cash_in'),0),
-  coalesce(sum(amount) filter(where event_type in ('cash_out','cash_expense')),0),
-  coalesce(sum(amount) filter(where event_type='refund'),0),
+  coalesce(sum(amount) filter(where event_type='cash_sale' and resolution_status='confirmed'),0),
+  coalesce(sum(amount) filter(where event_type='cash_in' and resolution_status='confirmed'),0),
+  coalesce(sum(amount) filter(where event_type in ('cash_out','cash_expense') and resolution_status='confirmed'),0),
+  coalesce(sum(amount) filter(where event_type='refund' and resolution_status='confirmed'),0),
   coalesce(jsonb_agg(jsonb_build_object('event_id',event_id,'event_type',event_type,'amount',amount,
-    'actor_id',actor_id,'actor_name',actor_name,'device_id',device_id,'note',note,'occurred_at',occurred_at)
+    'resolution_status',resolution_status,'actor_id',actor_id,'actor_name',actor_name,'device_id',device_id,'note',note,'occurred_at',occurred_at)
     order by occurred_at),'[]'::jsonb)
  into v_sales,v_in,v_out,v_refund,v_events
- from public.mambo_shared_drawer_events where drawer_id=v_drawer.id;
+ from public.mambo_shared_drawer_events where drawer_id=v_drawer.id and resolution_status<>'reversed';
  return jsonb_build_object('open',true,'drawer_id',v_drawer.id,'opening_cash',v_drawer.opening_cash,
    'cash_sales',v_sales,'cash_in',v_in,'cash_out',v_out,'refund',v_refund,
+   'pending_events',(select count(*) from public.mambo_shared_drawer_events where drawer_id=v_drawer.id and resolution_status='pending'),
    'expected_cash',v_drawer.opening_cash+v_sales+v_in-v_out-v_refund,
    'opened_at',v_drawer.opened_at,'opened_by',v_drawer.opened_by_name,'events',v_events);
 end $$;
@@ -283,9 +289,10 @@ begin
  select * into v_drawer from public.mambo_shared_drawers where store_id=p_store_id and status='open' for update;
  if not found then raise exception 'Laci kas bersama belum dibuka.'; end if;
  insert into public.mambo_shared_drawer_events(event_id,store_id,drawer_id,event_type,amount,
-   source_record_id,actor_id,actor_name,device_id,note)
+   source_record_id,actor_id,actor_name,device_id,note,resolution_status)
  values(p_event_id,p_store_id,v_drawer.id,p_event_type,p_amount,p_source_record_id,auth.uid(),
-   coalesce(nullif(trim(p_actor_name),''),'Owner'),null,p_note)
+   coalesce(nullif(trim(p_actor_name),''),'Owner'),null,p_note,
+   case when p_event_type in ('cash_sale','cash_expense') then 'pending' else 'confirmed' end)
  on conflict(event_id) do nothing;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
 end $$;
@@ -302,6 +309,9 @@ begin
  select * into v_drawer from public.mambo_shared_drawers
  where store_id=p_store_id and status='open' for update;
  if not found then raise exception 'Tidak ada laci kas bersama yang terbuka.'; end if;
+ if exists(select 1 from public.mambo_shared_drawer_events where drawer_id=v_drawer.id and resolution_status='pending') then
+  raise exception 'Masih ada transaksi/pergerakan kas yang belum dikonfirmasi dari perangkat. Sinkronkan terlebih dahulu.';
+ end if;
  v_snapshot:=public.mambo_shared_drawer_snapshot_internal(p_store_id);
  v_expected:=(v_snapshot->>'expected_cash')::numeric;
  update public.mambo_shared_drawers set status='closed',closed_by=auth.uid(),
@@ -367,6 +377,9 @@ begin
   if p_counted_cash is null or p_counted_cash<0 then raise exception 'Uang fisik tidak valid.'; end if;
   select * into v_drawer from public.mambo_shared_drawers where store_id=v_store and status='open' for update;
   if not found then raise exception 'Tidak ada laci kas yang terbuka.'; end if;
+  if exists(select 1 from public.mambo_shared_drawer_events where drawer_id=v_drawer.id and resolution_status='pending') then
+   raise exception 'Masih ada transaksi/pergerakan kas yang belum dikonfirmasi dari perangkat. Sinkronkan terlebih dahulu.';
+  end if;
   v_snapshot:=public.mambo_shared_drawer_snapshot_internal(v_store);
   v_expected:=(v_snapshot->>'expected_cash')::numeric;
   update public.mambo_shared_drawers set status='closed',closed_by=(v_staff->>'id')::uuid,
@@ -411,6 +424,36 @@ begin
  return coalesce((select supervisor_expense_categories from public.mambo_shared_drawer_settings where store_id=v_store),false);
 end $$;
 
+
+
+-- A pending cash_sale/cash_expense is finalized only after its local record commits.
+-- If the local commit fails, the originating actor can reverse the provisional event.
+create or replace function public.mambo_shared_drawer_event_resolve(
+ p_store_id uuid,p_event_id uuid,p_resolution text,
+ p_device_token text default null,p_staff_session_token text default null
+) returns jsonb language plpgsql security definer set search_path=public,extensions
+as $
+declare v_event public.mambo_shared_drawer_events%rowtype; v_staff jsonb;
+begin
+ if p_resolution not in ('confirmed','reversed') then raise exception 'Status penyelesaian tidak valid.'; end if;
+ select * into v_event from public.mambo_shared_drawer_events
+ where event_id=p_event_id and store_id=p_store_id for update;
+ if not found then raise exception 'Pergerakan kas tidak ditemukan.'; end if;
+ if p_device_token is not null and p_staff_session_token is not null then
+  v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+  if (v_staff->>'store_id')::uuid<>p_store_id or (v_staff->>'id')::uuid<>v_event.actor_id
+     or (v_staff->>'device_id')::uuid is distinct from v_event.device_id then
+   raise exception 'Sesi perangkat tidak berhak menyelesaikan pergerakan ini.';
+  end if;
+ elsif auth.uid() is null or not public.mambo_is_owner(p_store_id) or v_event.actor_id<>auth.uid() then
+  raise exception 'Hanya pembuat pergerakan atau Owner yang berwenang.';
+ end if;
+ if v_event.resolution_status=p_resolution then return public.mambo_shared_drawer_snapshot_internal(p_store_id); end if;
+ if v_event.resolution_status<>'pending' then raise exception 'Pergerakan kas sudah diselesaikan dan tidak dapat diubah.'; end if;
+ update public.mambo_shared_drawer_events set resolution_status=p_resolution where event_id=p_event_id;
+ return public.mambo_shared_drawer_snapshot_internal(p_store_id);
+end $;
+
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
 revoke all on function public.mambo_device_staff_logout(text,text) from public;
@@ -426,6 +469,7 @@ revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,t
 revoke all on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_expense_status(text,text) from public;
+revoke all on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) from public;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
@@ -440,5 +484,6 @@ grant execute on function public.mambo_shared_drawer_supervisor_control(text,tex
 grant execute on function public.mambo_shared_drawer_supervisor_expense_setting_status(uuid) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_expense_setting(uuid,boolean) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_expense_status(text,text) to anon,authenticated;
+grant execute on function public.mambo_shared_drawer_event_resolve(uuid,uuid,text,text,text) to anon,authenticated;
 
 notify pgrst, 'reload schema';
