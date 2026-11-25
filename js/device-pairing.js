@@ -221,7 +221,8 @@ document.addEventListener('DOMContentLoaded',()=>{
    if(loginSelect){
     loginSelect.innerHTML=staff.map(x=>'<option value="'+String(x.username).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'">'+String(x.display_name||x.name||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+' — '+(x.app_role==='cashier'?'Kasir':'Supervisor')+'</option>').join('');
    }
-   msg.textContent=staff.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Silakan pilih akun karyawan dan masukkan PIN.':'HP berhasil dipasangkan, tetapi belum ada akun karyawan aktif. Buat akun dari HP Owner.';
+   if($('#loginBtn'))$('#loginBtn').disabled=!staff.length;
+   msg.textContent=staff.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Browser ini sekarang terdaftar. Silakan pilih akun karyawan dan masukkan PIN.':'Browser berhasil dipasangkan, tetapi belum ada akun karyawan aktif. Buat akun dari HP Owner.';
    code.value='';
   }
   catch(e){msg.textContent='Gagal: '+(e.message||e);}
