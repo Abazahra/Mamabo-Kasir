@@ -114,8 +114,15 @@ export async function flushPendingOwnerDrawerEvents(){
     if(existing?.resolution_status==='pending'){
      const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
      const rows=await all(entity);
-     const exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
-     await resolveOwnerDrawerEvent(event.eventId,exists?'confirmed':'reversed');
+     const source=rows.find(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     if(source){
+      // Simpan bukti transaksi ke pusat sebelum mengonfirmasi saldo laci.
+      const {error:syncError}=await client.from('mambo_sync_records').upsert({
+       store_id:storeId,entity,record_id:String(source.id),payload:source,deleted:false,updated_at:new Date().toISOString()
+      },{onConflict:'store_id,entity,record_id'});
+      if(syncError)throw syncError;
+      await resolveOwnerDrawerEvent(event.eventId,'confirmed');
+     }else await resolveOwnerDrawerEvent(event.eventId,'reversed');
     }
    }
   }catch(err){remain.push(event);}
