@@ -74,6 +74,17 @@ export async function appendSharedDrawerEvent(event){
  if(error)throw error;return data;
 }
 
+export async function supervisorSharedDrawerControl(action,openingCash=null,countedCash=null){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_control',{
+  p_device_token:saved.token,p_staff_session_token:session.token,p_action:action,
+  p_opening_cash:openingCash,p_counted_cash:countedCash,p_actor_name:session.name||'Supervisor'
+ });
+ if(error)throw error;return data;
+}
+
 export async function flushPendingSharedDrawerEvents(){
  const pending=JSON.parse(localStorage.getItem('mambo_pending_drawer_events')||'[]');
  if(!pending.length)return {sent:0,pending:0};
