@@ -1,11 +1,19 @@
-import {createClient} from 'https://esm.sh/@supabase/supabase-js@2';
 import {replaceDeviceCatalog,all,put,remove,applyCloudRows} from './db.js?v=operational-normalization-2';
 const SUPABASE_URL='https://wtsheaowviaedwhyiwkk.supabase.co';
 const SUPABASE_KEY='sb_publishable_P6RPUvaz7-ivBQWiU925zQ_M2ZkDaz0';
 const KEY='mambo_paired_device';
-const client=createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+let client=null,clientPromise=null;
+async function ensureClient(){
+ if(client)return client;
+ if(!clientPromise)clientPromise=import('https://esm.sh/@supabase/supabase-js@2').then(({createClient})=>{
+  client=createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+  return client;
+ }).catch(error=>{clientPromise=null;throw Error('Pustaka koneksi server gagal dimuat. Periksa internet lalu muat ulang halaman. Detail: '+(error.message||error));});
+ return clientPromise;
+}
 const $=s=>document.querySelector(s);
 export async function pairDevice(code,label='Perangkat Kasir'){
+ await ensureClient();
  const {data,error}=await client.rpc('mambo_device_redeem_pair_code',{p_code:code,p_label:label});
  if(error)throw error;
  if(!data?.device_token||!data?.store_id)throw Error('Balasan pemasangan tidak lengkap.');
@@ -13,6 +21,7 @@ export async function pairDevice(code,label='Perangkat Kasir'){
  return syncDeviceCatalog();
 }
 export async function syncDeviceCatalog(){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
  const {data,error}=await client.rpc('mambo_device_catalog_snapshot',{p_device_token:saved.token});
@@ -24,6 +33,7 @@ export async function syncDeviceCatalog(){
 }
 
 export async function listDeviceStaff(){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
  const {data,error}=await client.rpc('mambo_device_staff_list',{p_device_token:saved.token});
@@ -31,6 +41,7 @@ export async function listDeviceStaff(){
  return Array.isArray(data)?data:[];
 }
 export async function listDeviceStaffRoles(){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
  const {data,error}=await client.rpc('mambo_device_staff_roles',{p_device_token:saved.token});
@@ -38,15 +49,18 @@ export async function listDeviceStaffRoles(){
  return Array.isArray(data)?data:[];
 }
 export async function acceptStaffInvitation(token,password){
+ await ensureClient();
  const {data,error}=await client.rpc('mambo_staff_invitation_accept',{p_token:token,p_password:password});
  if(error)throw error;return data;
 }
 async function staffInvitationInfo(token){
+ await ensureClient();
  const {data,error}=await client.rpc('mambo_staff_invitation_info',{p_token:token});
  if(error)throw error;return data;
 }
 const STAFF_SESSION_KEY='mambo_device_staff_session';
 export async function loginDeviceStaff(username,pin,roleId){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
  const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin,p_role_id:roleId});
@@ -60,6 +74,7 @@ export async function restoreDeviceStaffSession(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)return null;
+ await ensureClient();
  const {data,error}=await client.rpc('mambo_device_staff_session_check',{p_device_token:saved.token,p_staff_session_token:session.token});
  if(error){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
  if(!data?.active||String(data.id)!==String(session.staffId)){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
@@ -68,10 +83,11 @@ export async function restoreDeviceStaffSession(){
 export async function logoutDeviceStaff(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
- try{if(saved?.token&&session?.token)await client.rpc('mambo_device_staff_logout',{p_device_token:saved.token,p_staff_session_token:session.token});}
+ try{if(saved?.token&&session?.token){await ensureClient();await client.rpc('mambo_device_staff_logout',{p_device_token:saved.token,p_staff_session_token:session.token});}}
  finally{localStorage.removeItem(STAFF_SESSION_KEY);}
 }
 export async function supervisorExpenseCategoryAccess(){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
@@ -80,6 +96,7 @@ export async function supervisorExpenseCategoryAccess(){
 }
 
 export async function sharedDrawerSnapshot(){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');
@@ -96,8 +113,9 @@ export async function syncSharedDrawerSourceRecord(entity,record){
   p_insert_only:false
  });
 }
-export async function resolveSharedDrawerEvent(eventId,resolution){const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:saved.storeId,p_event_id:eventId,p_resolution:resolution,p_device_token:saved.token,p_staff_session_token:session.token});if(error)throw error;return data;}
+export async function resolveSharedDrawerEvent(eventId,resolution){await ensureClient();const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:saved.storeId,p_event_id:eventId,p_resolution:resolution,p_device_token:saved.token,p_staff_session_token:session.token});if(error)throw error;return data;}
 export async function appendSharedDrawerEvent(event){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)throw Error('Sesi kasir perangkat belum aktif.');
@@ -109,6 +127,7 @@ export async function appendSharedDrawerEvent(event){
 }
 
 export async function supervisorSharedDrawerControl(action,openingCash=null,countedCash=null){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
@@ -176,7 +195,7 @@ async function migrateLegacyCashierLocalData(){
 }
 
 let deviceSyncBusy=false,deviceSyncTimer=null;
-async function deviceRpc(name,args){const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
+async function deviceRpc(name,args){await ensureClient();const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
 export async function syncDeviceData(){
  if(deviceSyncBusy||!navigator.onLine)return {skipped:true};
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -225,6 +244,7 @@ export function startDeviceDataSync(){
 
 
 export async function updateDeviceStaffProfile(displayName,newPassword=''){
+ await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null'),session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
  if(!saved?.token||!session?.token)throw Error('Sesi karyawan perangkat belum aktif.');
  const {data,error}=await client.rpc('mambo_device_staff_update_self',{p_device_token:saved.token,p_staff_session_token:session.token,p_display_name:displayName,p_new_password:newPassword||null});
