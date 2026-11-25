@@ -203,7 +203,10 @@ begin
  end if;
  select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id;
  if found then
-  if v_existing.store_id<>v_store or v_existing.actor_id<>(v_staff->>'id')::uuid or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount then
+  if v_existing.store_id<>v_store or v_existing.actor_id<>(v_staff->>'id')::uuid
+     or v_existing.device_id is distinct from (v_staff->>'device_id')::uuid
+     or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount
+     or v_existing.source_record_id is distinct from p_source_record_id then
    raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
   end if;
   return public.mambo_shared_drawer_snapshot_internal(v_store);
@@ -281,7 +284,9 @@ begin
  if p_event_type not in ('cash_sale','cash_in','cash_out','cash_expense','refund') then raise exception 'Jenis pergerakan kas tidak diizinkan.'; end if;
  select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id;
  if found then
-  if v_existing.store_id<>p_store_id or v_existing.actor_id<>auth.uid() or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount then
+  if v_existing.store_id<>p_store_id or v_existing.actor_id<>auth.uid()
+     or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount
+     or v_existing.source_record_id is distinct from p_source_record_id then
    raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
   end if;
   return public.mambo_shared_drawer_snapshot_internal(p_store_id);
