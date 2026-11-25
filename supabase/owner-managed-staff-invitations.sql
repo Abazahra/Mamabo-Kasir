@@ -18,14 +18,14 @@ alter table public.mambo_staff_accounts
  add column if not exists invite_token_hash text,
  add column if not exists invite_expires_at timestamptz,
  add column if not exists last_login_at timestamptz;
-do $
+do $migration$
 begin
  if not exists(select 1 from pg_constraint where conname='mambo_staff_accounts_role_fk'
    and conrelid='public.mambo_staff_accounts'::regclass) then
   alter table public.mambo_staff_accounts add constraint mambo_staff_accounts_role_fk
    foreign key(store_id,staff_role_id) references public.mambo_staff_roles(store_id,id);
  end if;
-end $;
+end $migration$;
 alter table public.mambo_staff_roles enable row level security;
 revoke all on public.mambo_staff_roles from public,anon,authenticated;
 
