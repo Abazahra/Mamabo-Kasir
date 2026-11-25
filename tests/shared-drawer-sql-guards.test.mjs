@@ -7,7 +7,7 @@ const start=sql.indexOf('create or replace function public.mambo_shared_drawer_e
 const end=sql.indexOf('\nend $$;',start);
 assert.notEqual(start,-1,'drawer event resolver must exist');
 assert.notEqual(end,-1,'drawer event resolver must have a body');
-const resolver=sql.slice(start,end);
+const resolver=sql.slice(start,end);\nconst patch=readFileSync(new URL('../supabase/shared-cash-drawer-confirmation-guard.sql',import.meta.url),'utf8');
 
 test('server refuses to confirm a cash event without its source record',()=>{
  assert.match(resolver,/if\s+p_resolution\s*=\s*'confirmed'[\s\S]*?v_event\.source_record_id/i);
@@ -26,4 +26,8 @@ test('server checks cash expense source and amount before confirmation',()=>{
 test('device-originated confirmation checks cashier and device attribution',()=>{
  assert.match(resolver,/v_payload->>'userId'[\s\S]*?v_event\.actor_id::text/i);
  assert.match(resolver,/v_payload->>'deviceId'[\s\S]*?v_event\.device_id::text/i);
+});
+
+test('standalone SQL patch carries the same resolver guard',()=>{
+ assert.ok(patch.includes(resolver.trim()),'focused patch must stay aligned with the main migration');
 });
