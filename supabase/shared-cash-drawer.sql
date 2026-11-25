@@ -445,8 +445,8 @@ begin
      or (v_staff->>'device_id')::uuid is distinct from v_event.device_id then
    raise exception 'Sesi perangkat tidak berhak menyelesaikan pergerakan ini.';
   end if;
- elsif auth.uid() is null or not public.mambo_is_owner(p_store_id) or v_event.actor_id<>auth.uid() then
-  raise exception 'Hanya pembuat pergerakan atau Owner yang berwenang.';
+ elsif auth.uid() is null or not public.mambo_is_owner(p_store_id) then
+  raise exception 'Hanya pembuat pergerakan melalui sesi perangkat atau Owner toko yang berwenang.';
  end if;
  if v_event.resolution_status=p_resolution then return public.mambo_shared_drawer_snapshot_internal(p_store_id); end if;
  if v_event.resolution_status<>'pending' then raise exception 'Pergerakan kas sudah diselesaikan dan tidak dapat diubah.'; end if;
