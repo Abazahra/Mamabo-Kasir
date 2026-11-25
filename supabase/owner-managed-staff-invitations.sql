@@ -292,3 +292,21 @@ end $$;
 revoke all on function public.mambo_device_staff_login(text,text,text) from public,anon,authenticated;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
+
+create or replace function public.mambo_device_staff_update_self(p_device_token text,p_staff_session_token text,p_display_name text,p_new_password text default null)
+returns jsonb language plpgsql security definer set search_path=public,extensions
+as $$
+declare v_staff jsonb; v_id uuid;
+begin
+ v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+ if length(trim(coalesce(p_display_name,'')))<2 or length(trim(p_display_name))>80 then raise exception 'Nama harus 2–80 karakter.'; end if;
+ if p_new_password is not null and (length(p_new_password)<8 or length(p_new_password)>128) then raise exception 'Password baru harus 8–128 karakter.'; end if;
+ update public.mambo_staff_accounts set display_name=trim(p_display_name),
+  password_hash=case when p_new_password is null or p_new_password='' then password_hash else crypt(p_new_password,gen_salt('bf',10)) end,
+  pin_hash=case when p_new_password is null or p_new_password='' then pin_hash else crypt(encode(gen_random_bytes(16),'hex'),gen_salt('bf',10)) end,
+  must_change_password=false,updated_at=now()
+ where id=(v_staff->>'id')::uuid returning id into v_id;
+ return jsonb_build_object('ok',true,'id',v_id);
+end $$;
+revoke all on function public.mambo_device_staff_update_self(text,text,text,text) from public;
+grant execute on function public.mambo_device_staff_update_self(text,text,text,text) to anon,authenticated;
