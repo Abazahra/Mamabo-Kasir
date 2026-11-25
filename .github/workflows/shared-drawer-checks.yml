@@ -25,6 +25,17 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
+      - name: Install PostgreSQL parser
+        run: python3 -m pip install --user pglast
+      - name: Parse SQL syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          sql = Path("supabase/shared-cash-drawer.sql").read_text()
+          parse_sql(sql)
+          print("PostgreSQL SQL syntax passed")
+          PY
       - name: Check SQL function delimiters
         shell: bash
         run: |
