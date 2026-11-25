@@ -86,8 +86,8 @@ begin
    on conflict(store_id,entity,record_id) do nothing;
   else
    insert into public.mambo_sync_records(store_id,entity,record_id,payload,deleted,updated_at)
-   values(v_store,v_entity,v_id,v_row->'payload',false,now())
-   on conflict(store_id,entity,record_id) do update set payload=excluded.payload,deleted=false,updated_at=now();
+   values(v_store,v_entity,v_id,v_row->'payload',coalesce((v_row->>'deleted')::boolean,false),now())
+   on conflict(store_id,entity,record_id) do update set payload=excluded.payload,deleted=excluded.deleted,updated_at=now();
   end if;
   v_count:=v_count+1;
  end loop;
