@@ -30,16 +30,31 @@ export async function listDeviceStaff(){
  if(error)throw error;
  return Array.isArray(data)?data:[];
 }
-const STAFF_SESSION_KEY='mambo_device_staff_session';
-export async function loginDeviceStaff(username,pin){
+export async function listDeviceStaffRoles(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
- const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin});
+ const {data,error}=await client.rpc('mambo_device_staff_roles',{p_device_token:saved.token});
+ if(error)throw error;
+ return Array.isArray(data)?data:[];
+}
+export async function acceptStaffInvitation(token,password){
+ const {data,error}=await client.rpc('mambo_staff_invitation_accept',{p_token:token,p_password:password});
+ if(error)throw error;return data;
+}
+async function staffInvitationInfo(token){
+ const {data,error}=await client.rpc('mambo_staff_invitation_info',{p_token:token});
+ if(error)throw error;return data;
+}
+const STAFF_SESSION_KEY='mambo_device_staff_session';
+export async function loginDeviceStaff(username,pin,roleId){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat belum dipasangkan.');
+ const {data,error}=await client.rpc('mambo_device_staff_login',{p_device_token:saved.token,p_username:username,p_pin:pin,p_role_id:roleId});
  if(error)throw error;
  if(!data?.id||!data?.role||!data?.staff_session_token)throw Error('Server belum mengaktifkan sesi kasir bersama. Jalankan migrasi shared-cash-drawer.sql terlebih dahulu.');
  const session={token:data.staff_session_token,expiresAt:data.staff_session_expires_at,staffId:data.id,username:data.username,deviceId:data.device_id,storeId:data.store_id};
  localStorage.setItem(STAFF_SESSION_KEY,JSON.stringify(session));
- return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
+ return {id:data.id,name:data.name,role:data.role,jobTitle:data.job_title,username:data.username,active:true,sharedDrawerSession:true};
 }
 export async function restoreDeviceStaffSession(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -48,7 +63,7 @@ export async function restoreDeviceStaffSession(){
  const {data,error}=await client.rpc('mambo_device_staff_session_check',{p_device_token:saved.token,p_staff_session_token:session.token});
  if(error){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
  if(!data?.active||String(data.id)!==String(session.staffId)){localStorage.removeItem(STAFF_SESSION_KEY);return null;}
- return {id:data.id,name:data.name,role:data.role,username:data.username,active:true,sharedDrawerSession:true};
+ return {id:data.id,name:data.name,role:data.role,jobTitle:data.job_title,username:data.username,active:true,sharedDrawerSession:true};
 }
 export async function logoutDeviceStaff(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
