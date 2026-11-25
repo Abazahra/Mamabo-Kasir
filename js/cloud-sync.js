@@ -93,6 +93,18 @@ export async function setSupervisorDrawerControl(enabled){
  const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_setting',{p_store_id:storeId,p_enabled:!!enabled});
  if(error)throw error;return data;
 }
+export async function supervisorExpenseCategoryStatus(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_setting_status',{p_store_id:storeId});
+ if(error)throw error;return !!data;
+}
+export async function setSupervisorExpenseCategoryAccess(enabled){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_setting',{p_store_id:storeId,p_enabled:!!enabled});
+ if(error)throw error;return !!data;
+}
 export async function supervisorDrawerControlStatus(){
  await ensureClient();
  if(!client||!session||!storeId)throw Error('Login Cloud diperlukan.');
