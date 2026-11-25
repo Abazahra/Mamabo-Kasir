@@ -108,8 +108,16 @@ export async function flushPendingSharedDrawerEvents(){
     if(existing?.resolution_status==='pending'){
      const entity=event.type==='cash_sale'?'transactions':'operationalExpenses';
      const rows=await all(entity);
-     const exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
-     await resolveSharedDrawerEvent(event.eventId,exists?'confirmed':'reversed');
+     const source=rows.find(row=>String(row.id)===String(event.sourceRecordId||event.eventId));
+     if(source){
+      // Pastikan bukti transaksi sudah diterima server sebelum ledger kas dikonfirmasi.
+      await deviceRpc('mambo_device_sync_push',{
+       p_device_token:JSON.parse(localStorage.getItem(KEY)||'null')?.token,
+       p_records:[{entity,record_id:String(source.id),payload:source,deleted:false}],
+       p_insert_only:false
+      });
+      await resolveSharedDrawerEvent(event.eventId,'confirmed');
+     }else await resolveSharedDrawerEvent(event.eventId,'reversed');
     }
    }
    sent++;
