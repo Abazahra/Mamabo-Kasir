@@ -56,6 +56,14 @@ export async function logoutDeviceStaff(){
  try{if(saved?.token&&session?.token)await client.rpc('mambo_device_staff_logout',{p_device_token:saved.token,p_staff_session_token:session.token});}
  finally{localStorage.removeItem(STAFF_SESSION_KEY);}
 }
+export async function supervisorExpenseCategoryAccess(){
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
+ if(!saved?.token||!session?.token)throw Error('Sesi Supervisor perangkat belum aktif.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_expense_status',{p_device_token:saved.token,p_staff_session_token:session.token});
+ if(error)throw error;return !!data;
+}
+
 export async function sharedDrawerSnapshot(){
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  const session=JSON.parse(localStorage.getItem(STAFF_SESSION_KEY)||'null');
