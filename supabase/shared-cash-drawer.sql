@@ -235,7 +235,7 @@ begin
   coalesce(sum(amount) filter(where event_type in ('cash_out','cash_expense') and resolution_status='confirmed'),0),
   coalesce(sum(amount) filter(where event_type='refund' and resolution_status='confirmed'),0),
   coalesce(jsonb_agg(jsonb_build_object('event_id',event_id,'event_type',event_type,'amount',amount,
-    'resolution_status',resolution_status,'actor_id',actor_id,'actor_name',actor_name,'device_id',device_id,'note',note,'occurred_at',occurred_at)
+    'resolution_status',resolution_status,'source_record_id',source_record_id,'actor_id',actor_id,'actor_name',actor_name,'device_id',device_id,'note',note,'occurred_at',occurred_at)
     order by occurred_at),'[]'::jsonb)
  into v_sales,v_in,v_out,v_refund,v_events
  from public.mambo_shared_drawer_events where drawer_id=v_drawer.id and resolution_status<>'reversed';
