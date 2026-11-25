@@ -87,6 +87,18 @@ export async function appendOwnerDrawerEvent(event,actorName='Owner'){
  });
  if(error)throw error;return data;
 }
+export async function setSupervisorDrawerControl(enabled){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_setting',{p_store_id:storeId,p_enabled:!!enabled});
+ if(error)throw error;return data;
+}
+export async function supervisorDrawerControlStatus(){
+ await ensureClient();
+ if(!client||!session||!storeId)throw Error('Login Cloud diperlukan.');
+ const {data,error}=await client.rpc('mambo_shared_drawer_supervisor_status',{p_store_id:storeId});
+ if(error)throw error;return !!data;
+}
 export async function closeSharedDrawer(countedCash,actorName='Owner'){
  await ensureClient();
  if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
