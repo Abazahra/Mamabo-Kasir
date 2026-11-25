@@ -297,6 +297,63 @@ begin
    'counted_cash',p_counted_cash,'difference',p_counted_cash-v_expected,'closed_at',now());
 end $$;
 
+
+-- Owner-controlled supervisor permission. Missing setting means disabled.
+create table if not exists public.mambo_shared_drawer_settings (
+ store_id uuid primary key references public.mambo_stores(id) on delete cascade,
+ supervisor_control boolean not null default false,
+ updated_at timestamptz not null default now()
+);
+alter table public.mambo_shared_drawer_settings enable row level security;
+revoke all on public.mambo_shared_drawer_settings from public,anon,authenticated;
+
+create or replace function public.mambo_shared_drawer_supervisor_setting(p_store_id uuid,p_enabled boolean)
+returns boolean language plpgsql security definer set search_path=public
+as $
+begin
+ if auth.uid() is null or not public.mambo_is_owner(p_store_id) then
+  raise exception 'Hanya Owner yang dapat mengubah izin Supervisor.';
+ end if;
+ insert into public.mambo_shared_drawer_settings(store_id,supervisor_control,updated_at)
+ values(p_store_id,coalesce(p_enabled,false),now())
+ on conflict(store_id) do update set supervisor_control=excluded.supervisor_control,updated_at=now();
+ return coalesce(p_enabled,false);
+end $;
+
+create or replace function public.mambo_shared_drawer_supervisor_control(
+ p_device_token text,p_staff_session_token text,p_action text,
+ p_opening_cash numeric default null,p_counted_cash numeric default null,p_actor_name text default 'Supervisor'
+) returns jsonb language plpgsql security definer set search_path=public,extensions
+as $
+declare v_staff jsonb;v_store uuid;v_drawer public.mambo_shared_drawers%rowtype;v_snapshot jsonb;v_expected numeric(18,2);
+begin
+ v_staff:=public.mambo_device_staff_session_check(p_device_token,p_staff_session_token);
+ v_store:=(v_staff->>'store_id')::uuid;
+ if coalesce(v_staff->>'role','')<>'supervisor' then raise exception 'Aksi ini hanya untuk Supervisor.'; end if;
+ if not exists(select 1 from public.mambo_shared_drawer_settings where store_id=v_store and supervisor_control=true) then
+  raise exception 'Izin Supervisor belum diaktifkan oleh Owner.';
+ end if;
+ if p_action='open' then
+  if p_opening_cash is null or p_opening_cash<0 then raise exception 'Modal awal tidak valid.'; end if;
+  insert into public.mambo_shared_drawers(store_id,status,opening_cash,opened_by,opened_by_name)
+  values(v_store,'open',p_opening_cash,(v_staff->>'id')::uuid,coalesce(nullif(trim(p_actor_name),''),'Supervisor'));
+  return public.mambo_shared_drawer_snapshot_internal(v_store);
+ elsif p_action='close' then
+  if p_counted_cash is null or p_counted_cash<0 then raise exception 'Uang fisik tidak valid.'; end if;
+  select * into v_drawer from public.mambo_shared_drawers where store_id=v_store and status='open' for update;
+  if not found then raise exception 'Tidak ada laci kas yang terbuka.'; end if;
+  v_snapshot:=public.mambo_shared_drawer_snapshot_internal(v_store);
+  v_expected:=(v_snapshot->>'expected_cash')::numeric;
+  update public.mambo_shared_drawers set status='closed',closed_by=(v_staff->>'id')::uuid,
+   closed_by_name=coalesce(nullif(trim(p_actor_name),''),'Supervisor'),closed_at=now(),
+   counted_cash=p_counted_cash,expected_cash=v_expected,difference=p_counted_cash-v_expected
+  where id=v_drawer.id;
+  return jsonb_build_object('drawer_id',v_drawer.id,'expected_cash',v_expected,'counted_cash',p_counted_cash,
+   'difference',p_counted_cash-v_expected,'closed_at',now());
+ else raise exception 'Aksi Supervisor tidak dikenal.'; end if;
+exception when unique_violation then raise exception 'Laci kas bersama toko sudah terbuka.';
+end $;
+
 revoke all on function public.mambo_device_staff_login(text,text,text) from public;
 revoke all on function public.mambo_device_staff_session_check(text,text) from public;
 revoke all on function public.mambo_device_staff_logout(text,text) from public;
@@ -306,6 +363,8 @@ revoke all on function public.mambo_shared_drawer_snapshot(uuid,text,text) from 
 revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from public,anon,authenticated;
 revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
 revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_logout(text,text) to anon,authenticated;
@@ -314,5 +373,7 @@ grant execute on function public.mambo_shared_drawer_event(text,text,uuid,text,n
 grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to anon,authenticated;
 grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
 
 notify pgrst, 'reload schema';
