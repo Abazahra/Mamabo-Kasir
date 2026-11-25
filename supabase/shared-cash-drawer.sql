@@ -307,6 +307,14 @@ create table if not exists public.mambo_shared_drawer_settings (
 alter table public.mambo_shared_drawer_settings enable row level security;
 revoke all on public.mambo_shared_drawer_settings from public,anon,authenticated;
 
+create or replace function public.mambo_shared_drawer_supervisor_status(p_store_id uuid)
+returns boolean language plpgsql security definer set search_path=public
+as $
+begin
+ if auth.uid() is null or not public.mambo_is_member(p_store_id) then raise exception 'Akses toko ditolak.'; end if;
+ return coalesce((select supervisor_control from public.mambo_shared_drawer_settings where store_id=p_store_id),false);
+end $;
+
 create or replace function public.mambo_shared_drawer_supervisor_setting(p_store_id uuid,p_enabled boolean)
 returns boolean language plpgsql security definer set search_path=public
 as $
@@ -364,6 +372,7 @@ revoke all on function public.mambo_shared_drawer_snapshot_internal(uuid) from p
 revoke all on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) from public,anon;
 revoke all on function public.mambo_shared_drawer_close(uuid,numeric,text) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) from public,anon;
+revoke all on function public.mambo_shared_drawer_supervisor_status(uuid) from public,anon;
 revoke all on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) from public;
 grant execute on function public.mambo_device_staff_login(text,text,text) to anon,authenticated;
 grant execute on function public.mambo_device_staff_session_check(text,text) to anon,authenticated;
@@ -374,6 +383,7 @@ grant execute on function public.mambo_shared_drawer_snapshot(uuid,text,text) to
 grant execute on function public.mambo_shared_drawer_owner_event(uuid,uuid,text,numeric,text,text,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_close(uuid,numeric,text) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_setting(uuid,boolean) to authenticated;
+grant execute on function public.mambo_shared_drawer_supervisor_status(uuid) to authenticated;
 grant execute on function public.mambo_shared_drawer_supervisor_control(text,text,text,numeric,numeric,text) to anon,authenticated;
 
 notify pgrst, 'reload schema';
