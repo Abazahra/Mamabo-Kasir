@@ -1,12 +1,12 @@
 import {all,put,remove,uid,applyCloudRows} from './db.js?v=operational-normalization-2';
 import {validatePendingDrawerRecord} from './shared-drawer-validation.mjs?v=shared-drawer-6';
-let client=null,storeId=null,session=null,busy=false,syncPromise=null,clientConfigKey=null,authSubscription=null,syncStarted=false;
+let client=null,storeId=null,session=null,busy=false,syncPromise=null,clientConfigKey=null,authSubscription=null,syncStarted=false,suppressAuthSync=false;
 function notifyQueue(){all('syncQueue').then(rows=>window.dispatchEvent(new CustomEvent('mambo-sync-update',{detail:{pending:rows.length}}))).catch(()=>{});}
 const $=s=>document.querySelector(s);
 const ENTITIES=new Set(['products','suppliers','movements','transactions','shifts','auditLogs','categories','customers','opnames','settings','receivables','promos','returns','purchases','payables','supplierPayments','operationalExpenses']);
 function status(s){const el=document.querySelector('#syncStatus');if(el){el.dataset.state=s;el.textContent=s==='syncing'?'Menyinkronkan':s==='online'?'Online':'Offline';}}
 export function getCloudConfig(){return JSON.parse(localStorage.getItem('mambo_cloud_config')||'{}');}
-export async function configureCloud(url,key,store=''){if(!url||!key)throw Error('URL dan publishable/anon key wajib diisi.');const configKey=url.trim()+'|'+key.trim();storeId=String(store||'').trim()||null;if(!client||clientConfigKey!==configKey){if(client&&authSubscription)authSubscription.unsubscribe();const {createClient}=await import('https://esm.sh/@supabase/supabase-js@2');client=createClient(url.trim(),key.trim(),{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});clientConfigKey=configKey;const {data:{subscription}}=client.auth.onAuthStateChange((_event,nextSession)=>{session=nextSession;if(session)Promise.resolve().then(()=>syncNow());});authSubscription=subscription;}localStorage.setItem('mambo_cloud_config',JSON.stringify({url:url.trim(),key:key.trim(),storeId:storeId||''}));const {data,error}=await client.auth.getSession();if(error)throw error;session=data.session;status(navigator.onLine?'online':'offline');return !!session;}
+export async function configureCloud(url,key,store=''){if(!url||!key)throw Error('URL dan publishable/anon key wajib diisi.');const configKey=url.trim()+'|'+key.trim();storeId=String(store||'').trim()||null;if(!client||clientConfigKey!==configKey){if(client&&authSubscription)authSubscription.unsubscribe();const {createClient}=await import('https://esm.sh/@supabase/supabase-js@2');client=createClient(url.trim(),key.trim(),{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});clientConfigKey=configKey;const {data:{subscription}}=client.auth.onAuthStateChange((_event,nextSession)=>{session=nextSession;if(session&&!suppressAuthSync)Promise.resolve().then(()=>syncNow());});authSubscription=subscription;}localStorage.setItem('mambo_cloud_config',JSON.stringify({url:url.trim(),key:key.trim(),storeId:storeId||''}));const {data,error}=await client.auth.getSession();if(error)throw error;session=data.session;status(navigator.onLine?'online':'offline');return !!session;}
 async function ensureClient(){if(client&&storeId)return;const c=getCloudConfig();if(!c.url||!c.key||!c.storeId)return;await configureCloud(c.url,c.key,c.storeId);}
 export async function cloudSignIn(email,password,storeName='MAMBO KASIR'){await ensureClient();if(!client)throw Error('Konfigurasi Supabase belum diisi.');const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;if(!storeId){const boot=await client.rpc('mambo_owner_bootstrap',{p_store_name:storeName});if(boot.error)throw boot.error;storeId=boot.data?.store_id||null;if(!storeId)throw Error('Supabase tidak mengembalikan Store ID.');const cfg=getCloudConfig();cfg.storeId=storeId;localStorage.setItem('mambo_cloud_config',JSON.stringify(cfg));}const sync=await syncNow();if(!sync?.ok)throw Error('Login Cloud berhasil, tetapi sinkronisasi gagal: '+(sync?.error||'proses belum berjalan.'));return data.user;}
 export async function cloudRegisterOwner(url,key,email,password,storeName){await configureCloud(url,key,'');if(!client)throw Error('Konfigurasi Supabase belum diisi.');const {data,error}=await client.auth.signUp({email,password});if(error)throw error;session=data.session||null;if(!session){localStorage.setItem('mambo_cloud_config',JSON.stringify({url:url.trim(),key:key.trim(),storeId:''}));return {needsConfirmation:true};}const boot=await client.rpc('mambo_owner_bootstrap',{p_store_name:storeName});if(boot.error)throw boot.error;storeId=boot.data?.store_id||null;if(!storeId)throw Error('Supabase tidak mengembalikan Store ID.');const cfg=getCloudConfig();cfg.storeId=storeId;localStorage.setItem('mambo_cloud_config',JSON.stringify(cfg));await syncNow();return {needsConfirmation:false,storeId};}
@@ -19,8 +19,9 @@ export async function cloudSignInExistingOwner(url,key,existingStoreId,email,pas
  if(!client)throw Error('Konfigurasi Supabase tidak valid.');
  const pending=await all('syncQueue');
  if(pending.length)throw Error('Ada '+pending.length+' perubahan lokal yang belum tersinkron. Demi keamanan, login lintas-browser dihentikan agar data lokal tidak tertimpa/terkirim.');
+ suppressAuthSync=true;
  const {data,error}=await client.auth.signInWithPassword({email,password});
- if(error)throw error;
+ if(error){suppressAuthSync=false;throw error;}
  session=data.session;
  try{
   const check=await client.rpc('mambo_owner_bootstrap',{p_store_name:'MAMBO KASIR'});
@@ -30,9 +31,10 @@ export async function cloudSignInExistingOwner(url,key,existingStoreId,email,pas
   const applied=await applyCloudRows(rows);
   localStorage.setItem('mambo_cloud_config',JSON.stringify({url:url.trim(),key:key.trim(),storeId:sid}));
   status('online');
+  suppressAuthSync=false;
   window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:applied}));
   return {user:data.user,storeId:sid,pulled:rows.length,applied:applied.applied||0};
- }catch(err){await client.auth.signOut();session=null;throw err;}
+ }catch(err){suppressAuthSync=false;await client.auth.signOut();session=null;throw err;}
 }
 export async function cloudSignOut(){if(client)await client.auth.signOut();session=null;status(navigator.onLine?'online':'offline');}
 async function findProductSkuConflicts(){
