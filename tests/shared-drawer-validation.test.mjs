@@ -29,3 +29,7 @@ test('does not validate missing, deleted, or unrelated records',()=>{
  assert.equal(validatePendingDrawerRecord(saleEvent,{...saleRow,deleted:true}).valid,false);
  assert.equal(validatePendingDrawerRecord({...saleEvent,event_type:'cash_in'},saleRow).valid,false);
 });
+
+test('rejects a source record ID that differs from the ledger event reference',()=>{
+ assert.equal(validatePendingDrawerRecord({...saleEvent,source_record_id:'other-tx'},saleRow).valid,false);
+});
