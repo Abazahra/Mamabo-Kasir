@@ -311,3 +311,30 @@ begin
 end $$;
 revoke all on function public.mambo_device_staff_update_self(text,text,text,text) from public;
 grant execute on function public.mambo_device_staff_update_self(text,text,text,text) to anon,authenticated;
+
+-- Revoke active sessions immediately when Owner disables an account or role.
+create or replace function public.mambo_revoke_staff_sessions_on_change()
+returns trigger language plpgsql security definer set search_path=public
+as $$
+begin
+ if tg_table_name='mambo_staff_accounts' then
+  if old.active is distinct from new.active or old.staff_role_id is distinct from new.staff_role_id
+     or old.password_hash is distinct from new.password_hash then
+   update public.mambo_device_staff_sessions set revoked_at=now()
+   where staff_id=new.id and revoked_at is null;
+  end if;
+ elsif tg_table_name='mambo_staff_roles' then
+  if old.active is distinct from new.active or old.permission_role is distinct from new.permission_role then
+   update public.mambo_device_staff_sessions s set revoked_at=now()
+   from public.mambo_staff_accounts a
+   where s.staff_id=a.id and a.staff_role_id=new.id and a.store_id=new.store_id and s.revoked_at is null;
+  end if;
+ end if;
+ return new;
+end $$;
+drop trigger if exists mambo_staff_sessions_revoke_account_change on public.mambo_staff_accounts;
+create trigger mambo_staff_sessions_revoke_account_change after update on public.mambo_staff_accounts
+for each row execute function public.mambo_revoke_staff_sessions_on_change();
+drop trigger if exists mambo_staff_sessions_revoke_role_change on public.mambo_staff_roles;
+create trigger mambo_staff_sessions_revoke_role_change after update on public.mambo_staff_roles
+for each row execute function public.mambo_revoke_staff_sessions_on_change();
