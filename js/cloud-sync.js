@@ -78,6 +78,8 @@ export async function openSharedDrawer(openingCash,actorName='Owner'){
  const {data,error}=await client.rpc('mambo_shared_drawer_open',{p_store_id:storeId,p_opening_cash:Number(openingCash),p_actor_name:actorName});
  if(error)throw error;return data;
 }
+export async function resolveOwnerDrawerEvent(eventId,resolution){await ensureClient();if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');const {data,error}=await client.rpc('mambo_shared_drawer_event_resolve',{p_store_id:storeId,p_event_id:eventId,p_resolution:resolution});if(error)throw error;return data;}
+export async function flushPendingOwnerDrawerEvents(){const pending=JSON.parse(localStorage.getItem('mambo_pending_owner_drawer_events')||'[]'),remain=[];for(const event of pending){try{await appendOwnerDrawerEvent(event,'Owner');if(event.type==='cash_sale'||event.type==='cash_expense'){const entity=event.type==='cash_sale'?'transactions':'operationalExpenses',rows=await all(entity),exists=rows.some(row=>String(row.id)===String(event.sourceRecordId||event.eventId));await resolveOwnerDrawerEvent(event.eventId,exists?'confirmed':'reversed');}}catch(err){remain.push(event);}}localStorage.setItem('mambo_pending_owner_drawer_events',JSON.stringify(remain));return {pending:remain.length};}
 export async function appendOwnerDrawerEvent(event,actorName='Owner'){
  await ensureClient();
  if(!client||!session||!storeId)throw Error('Login Cloud sebagai Owner diperlukan.');
