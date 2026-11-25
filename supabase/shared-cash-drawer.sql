@@ -220,6 +220,14 @@ begin
    p_source_record_id,(v_staff->>'id')::uuid,v_staff->>'name',(v_staff->>'device_id')::uuid,p_note,
    case when p_event_type in ('cash_sale','cash_expense') then 'pending' else 'confirmed' end)
  on conflict(event_id) do nothing;
+ -- Re-read after the insert to validate the conflict path as well as ordinary retries.
+ select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id for update;
+ if v_existing.store_id<>v_store or v_existing.actor_id<>(v_staff->>'id')::uuid
+    or v_existing.device_id is distinct from (v_staff->>'device_id')::uuid
+    or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount
+    or v_existing.source_record_id is distinct from p_source_record_id then
+  raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
+ end if;
  return public.mambo_shared_drawer_snapshot_internal((v_staff->>'store_id')::uuid);
 end $$;
 
@@ -299,6 +307,13 @@ begin
    coalesce(nullif(trim(p_actor_name),''),'Owner'),null,p_note,
    case when p_event_type in ('cash_sale','cash_expense') then 'pending' else 'confirmed' end)
  on conflict(event_id) do nothing;
+ -- Re-read after the insert to validate the conflict path as well as ordinary retries.
+ select * into v_existing from public.mambo_shared_drawer_events where event_id=p_event_id for update;
+ if v_existing.store_id<>p_store_id or v_existing.actor_id<>auth.uid()
+    or v_existing.event_type<>p_event_type or v_existing.amount<>p_amount
+    or v_existing.source_record_id is distinct from p_source_record_id then
+  raise exception 'ID pergerakan kas sudah digunakan untuk catatan lain.';
+ end if;
  return public.mambo_shared_drawer_snapshot_internal(p_store_id);
 end $$;
 
