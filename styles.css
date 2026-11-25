@@ -65,3 +65,31 @@
   .main{margin-left:0!important;width:100%!important}
   #menuToggle{display:inline-block!important}
 }
+
+
+/* Mobile viewport and bottom reachability: avoid clipping behind dynamic browser/system bars */
+@media (max-width: 680px){
+  html,body{min-height:100%;height:auto}
+  body{overflow:hidden}
+  .app{
+    height:100vh!important;
+    height:100dvh!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  .main{
+    height:100vh!important;
+    height:100dvh!important;
+    min-height:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;
+    overscroll-behavior-y:contain;
+    padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 20px)!important;
+  }
+  .content{
+    min-height:0;
+    padding-bottom:calc(env(safe-area-inset-bottom, 0px) + 36px)!important;
+  }
+  #shiftPanel{margin-bottom:12px}
+}
