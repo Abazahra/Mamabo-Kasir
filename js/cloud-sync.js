@@ -87,13 +87,39 @@ export async function reviewSharedDrawerPendingEvents(){
  const reviewed=[];
  for(const event of pending){
   const entity=event.event_type==='cash_sale'?'transactions':event.event_type==='cash_expense'?'operationalExpenses':null;
-  let synced=false;
+  let synced=false,valid=false,validationReason='Jenis pergerakan belum didukung untuk pemeriksaan otomatis.';
   if(entity&&event.source_record_id){
-   const result=await client.from('mambo_sync_records').select('record_id,deleted').eq('store_id',storeId).eq('entity',entity).eq('record_id',String(event.source_record_id)).maybeSingle();
+   const result=await client.from('mambo_sync_records').select('record_id,payload,deleted').eq('store_id',storeId).eq('entity',entity).eq('record_id',String(event.source_record_id)).maybeSingle();
    if(result.error)throw result.error;
-   synced=!!result.data&&!result.data.deleted;
+   const row=result.data;
+   synced=!!row&&!row.deleted;
+   if(!row)validationReason='Record belum ditemukan pada sinkronisasi pusat.';
+   else if(row.deleted)validationReason='Record pusat ditandai terhapus.';
+   else{
+    const payload=row.payload||{};
+    const identityMatches=String(row.record_id)===String(event.source_record_id)&&String(payload.id??'')===String(event.source_record_id);
+    const deviceMatches=!event.device_id||String(payload.deviceId??'')===String(event.device_id);
+    const actorMatches=!event.device_id||String(payload.userId??'')===String(event.actor_id);
+    let amountMatches=false,statusMatches=false;
+    if(event.event_type==='cash_sale'){
+     const cashPaid=(Array.isArray(payload.payments)?payload.payments:[]).filter(p=>String(p.method||'').trim().toLowerCase()==='tunai').reduce((sum,p)=>sum+Number(p.amount||0),0);
+     const expectedAmount=Math.min(Number(payload.total||0),cashPaid);
+     amountMatches=Number.isFinite(expectedAmount)&&Math.abs(expectedAmount-Number(event.amount))<0.01;
+     statusMatches=payload.status==='paid'&&expectedAmount>0;
+    }else{
+     amountMatches=Math.abs(Number(payload.amount||0)-Number(event.amount))<0.01;
+     statusMatches=payload.source==='cash';
+    }
+    valid=identityMatches&&deviceMatches&&actorMatches&&amountMatches&&statusMatches;
+    validationReason=valid?'Record pusat cocok dengan jenis, nominal, kasir, dan perangkat.':
+     !identityMatches?'Identitas record tidak cocok dengan referensi pergerakan kas.':
+     !deviceMatches?'Perangkat pada record tidak cocok dengan perangkat pembuat pergerakan.':
+     !actorMatches?'Kasir pada record tidak cocok dengan pembuat pergerakan.':
+     !amountMatches?'Nominal record tidak cocok dengan nominal pergerakan kas.':
+     'Status atau sumber pembayaran record tidak sesuai.';
+   }
   }
-  reviewed.push({...event,source_entity:entity,synced_record_found:synced});
+  reviewed.push({...event,source_entity:entity,synced_record_found:synced,synced_record_valid:valid,validation_reason:validationReason});
  }
  return {snapshot:data,pending:reviewed};
 }
