@@ -38,7 +38,7 @@ jobs:
               print(f"PostgreSQL SQL syntax passed: {path}")
           PY
       - name: Test shared drawer source reconciliation
-        run: node --test tests/shared-drawer-validation.test.mjs
+        run: node --test tests/shared-drawer-*.test.mjs
       - name: Check SQL function delimiters
         shell: bash
         run: |
