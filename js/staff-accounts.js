@@ -1,4 +1,4 @@
-import {staffAccountList,staffAccountUpdate,staffRoleList,staffRoleSave,staffInviteCreate,staffInviteReset} from './cloud-sync.js?v=owner-job-invites-1';
+import {staffAccountList,staffAccountUpdate,staffRoleList,staffRoleSave,staffInviteCreate,staffInviteReset} from './cloud-sync.js?v=owner-login-fix-2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export async function mountStaffAccounts(root,user){
  if(user?.role!=='owner'){root.innerHTML='<section class="panel">Hanya Owner yang dapat mengelola jabatan dan akun karyawan.</section>';return;}
