@@ -59,6 +59,31 @@ async function staffInvitationInfo(token){
  if(error)throw error;return data;
 }
 const STAFF_SESSION_KEY='mambo_device_staff_session';
+export async function loginDeviceStaffAuto(username,password){
+ await ensureClient();
+ const existing=JSON.parse(localStorage.getItem(KEY)||'null');
+ const label=(navigator.userAgent||'Browser otomatis').slice(0,72);
+ const {data,error}=await client.rpc('mambo_staff_login_auto',{
+  p_username:username,
+  p_password:password,
+  p_device_label:label,
+  p_existing_device_token:existing?.token||null
+ });
+ if(error)throw error;
+ if(!data?.id||!data?.staff_session_token||!data?.device_token||!data?.store_id)throw Error('Server belum mengembalikan sesi kasir yang lengkap.');
+ const saved={token:data.device_token,storeId:data.store_id,deviceId:data.device_id,label,lastSyncAt:null};
+ localStorage.setItem(KEY,JSON.stringify(saved));
+ localStorage.setItem(STAFF_SESSION_KEY,JSON.stringify({
+  token:data.staff_session_token,
+  expiresAt:data.staff_session_expires_at,
+  staffId:data.id,
+  username:data.username,
+  deviceId:data.device_id,
+  storeId:data.store_id
+ }));
+ await syncDeviceCatalog();
+ return {id:data.id,name:data.name,role:data.role,jobTitle:data.job_title,username:data.username,active:true,sharedDrawerSession:true};
+}
 export async function loginDeviceStaff(username,pin,roleId){
  await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -254,27 +279,6 @@ export async function updateDeviceStaffProfile(displayName,newPassword=''){
 
 export function devicePaired(){try{return !!JSON.parse(localStorage.getItem(KEY)||'null')?.token;}catch{return false;}}
 document.addEventListener('DOMContentLoaded',async()=>{
- const btn=$('#pairDeviceBtn'),code=$('#pairDeviceCode'),msg=$('#pairDeviceMessage');
- const loginSelect=$('#loginUser'),loginError=$('#loginError');
- const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const loadRoles=async()=>{
-  if(!devicePaired())return [];
-  const roles=await listDeviceStaffRoles();
-  if(loginSelect)loginSelect.innerHTML=roles.map(r=>'<option value="'+safe(r.id)+'">'+safe(r.title)+'</option>').join('');
-  if($('#loginBtn'))$('#loginBtn').disabled=!roles.length;
-  return roles;
- };
- if(devicePaired())loadRoles().catch(e=>{if(loginError)loginError.textContent=e.message;});
- if(btn)btn.onclick=async()=>{
-  btn.disabled=true;msg.textContent='Memasang perangkat…';
-  try{
-   const result=await pairDevice(code.value.trim(),($('#pairDeviceLabel')?.value||'Perangkat Kasir').trim());
-   const roles=await loadRoles();
-   msg.textContent=roles.length?'Berhasil dipasangkan. '+result.products+' produk dimuat. Jabatan aktif dari Owner sudah dimuat.':'Perangkat berhasil dipasangkan. Owner belum membuat jabatan aktif.';
-   code.value='';
-  }catch(e){msg.textContent='Gagal: '+(e.message||e);}
-  finally{btn.disabled=false;}
- };
  const token=new URLSearchParams(location.search).get('invite');
  if(token){
   const card=$('.login-card');
@@ -289,7 +293,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     if(p.length<8){panel.querySelector('#inviteError').textContent='Password minimal 8 karakter.';return;}
     if(p!==p2){panel.querySelector('#inviteError').textContent='Konfirmasi password tidak sama.';return;}
     const accept=panel.querySelector('#inviteAccept');accept.disabled=true;
-    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Buka halaman login pada perangkat yang sudah dipasangkan, pilih jabatan '+info.job_title+', lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
+    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Sekarang buka MAMBO KASIR dari browser mana pun, lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
     catch(e){panel.querySelector('#inviteError').textContent=e.message||String(e);}
     finally{accept.disabled=false;}
    };
