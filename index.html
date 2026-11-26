@@ -14,7 +14,7 @@
     button.disabled = true;
     button.textContent = 'Menyiapkan login Owner…';
     if (message) message.textContent = 'Tombol terdeteksi. Memuat layanan login…';
-    import('./js/owner-login-bridge.js?v=owner-login-visible-2')
+    import('./js/owner-login-bridge.js?v=owner-login-visible-3')
       .then(function (module) { return module.loginOwner(button); })
       .catch(function (error) {
         console.error('Owner login loader:', error);
