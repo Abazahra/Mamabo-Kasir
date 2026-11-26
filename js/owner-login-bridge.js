@@ -1,3 +1,5 @@
+import { all } from './db.js?v=operational-normalization-2';
+import { createUser } from './auth.js?v=operational-normalization-2';
 import { cloudSignInOwner } from './cloud-sync.js?v=owner-login-fix-2';
 
 export async function loginOwner(button) {
@@ -12,19 +14,24 @@ export async function loginOwner(button) {
 
   try {
     const result = await cloudSignInOwner(email, password);
-    if (!result?.user?.id) throw new Error('Server menerima login, tetapi identitas Owner tidak diterima aplikasi.');
-    const owner = {
-      id: result.user.id,
-      name: 'Pemilik Toko',
-      role: 'owner',
-      active: true,
-      email: result.user.email || email,
-      cloudOwner: true
-    };
+    if (!result?.user?.id) throw new Error('Server tidak mengembalikan identitas Owner.');
+
+    let owner = (await all('users')).find(item => item.role === 'owner' && item.active !== false);
+    if (!owner) {
+      await createUser('Pemilik Toko', 'owner', crypto.randomUUID().replace(/-/g, '').slice(0, 8));
+      owner = (await all('users')).find(item => item.role === 'owner' && item.active !== false);
+    }
+    if (!owner) throw new Error('Profil lokal Owner tidak dapat disiapkan.');
+
+    owner = { ...owner, email: result.user.email || email, cloudOwner: true };
     localStorage.setItem('mambo_owner_cloud_session', JSON.stringify(owner));
     localStorage.setItem('mambo_local_session_user', owner.id);
-    if (errorBox) errorBox.textContent = 'Login berhasil. Membuka dashboard Owner…';
-    window.location.reload();
+
+    window.dispatchEvent(new CustomEvent('mambo-owner-login-success', {
+      detail: { owner, pulled: result.pulled || 0, applied: result.applied || 0 }
+    }));
+    if (errorBox) errorBox.textContent = 'Login berhasil. Dashboard Owner sedang dibuka…';
+    button.textContent = 'Berhasil masuk';
   } catch (error) {
     console.error('Owner login:', error);
     if (errorBox) errorBox.textContent = 'Login Owner gagal: ' + (error?.message || 'Kesalahan tidak diketahui.');
