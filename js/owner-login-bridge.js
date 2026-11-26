@@ -27,9 +27,9 @@ export async function loginOwner(button) {
     localStorage.setItem('mambo_owner_cloud_session', JSON.stringify(owner));
     localStorage.setItem('mambo_local_session_user', owner.id);
 
-    window.dispatchEvent(new CustomEvent('mambo-owner-login-success', {
-      detail: { owner, pulled: result.pulled || 0, applied: result.applied || 0 }
-    }));
+    const successDetail = { owner, pulled: result.pulled || 0, applied: result.applied || 0 };
+    window.__mamboOwnerLoginPending = successDetail;
+    window.dispatchEvent(new CustomEvent('mambo-owner-login-success', { detail: successDetail }));
     if (errorBox) errorBox.textContent = 'Login berhasil. Dashboard Owner sedang dibuka…';
     button.textContent = 'Berhasil masuk';
   } catch (error) {

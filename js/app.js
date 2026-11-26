@@ -10,6 +10,22 @@ import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
 let user=null,page='dashboard',products=[],categories=[],customers=[],suppliers=[],movements=[];
 const LOCAL_SESSION_KEY='mambo_local_session_user';
+function acceptOwnerLogin(detail){
+ if(!detail?.owner)return;
+ user=detail.owner;
+ localStorage.setItem(LOCAL_SESSION_KEY,user.id);
+ localStorage.setItem('mambo_owner_cloud_session',JSON.stringify(user));
+ page='dashboard';
+ $('#login').classList.add('hidden');
+ shell();
+ toast('Owner berhasil masuk. '+Number(detail.pulled||0)+' data cloud diperiksa; '+Number(detail.applied||0)+' data diterapkan.');
+}
+window.addEventListener('mambo-owner-login-success',event=>acceptOwnerLogin(event.detail));
+if(window.__mamboOwnerLoginPending){
+ const pending=window.__mamboOwnerLoginPending;
+ delete window.__mamboOwnerLoginPending;
+ acceptOwnerLogin(pending);
+}
 
 function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 function eanValid(v){if(!v)return true;if(!/^\d{13}$/.test(v))return false;let sum=0;for(let i=0;i<12;i++)sum+=Number(v[i])*(i%2?3:1);return (10-sum%10)%10===Number(v[12]);}
@@ -91,16 +107,6 @@ function exportCSV(){const rows=[['sku','barcode','name','category','shelf','cos
 function download(name,type,data){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([data],{type}));a.href=url;a.download=name;a.click();URL.revokeObjectURL(url);}
 async function importCSV(e){const file=e.target.files[0];if(!file)return;const lines=(await file.text()).replace(/^\ufeff/,'').split(/\r?\n/).filter(Boolean);const parse=s=>{const out=[];let v='',q=false;for(let i=0;i<s.length;i++){if(s[i]==='"'&&s[i+1]==='"'&&q){v+='"';i++;}else if(s[i]==='"')q=!q;else if(s[i]===','&&!q){out.push(v);v='';}else v+=s[i];}out.push(v);return out;};const headers=parse(lines.shift()).map(x=>x.toLowerCase());let count=0;for(const line of lines){const r=parse(line),o=Object.fromEntries(headers.map((h,i)=>[h,r[i]??'']));if(!o.sku||!o.name)continue;let cat=categories.find(x=>x.name.toLowerCase()===o.category?.toLowerCase());if(!cat){cat={id:uid(),name:o.category||'Umum'};await put('categories',cat);categories.push(cat);}const old=products.find(x=>x.sku===o.sku);await put('products',{...(old||{}),id:old?.id||uid(),sku:o.sku,barcode:o.barcode||'',name:o.name,categoryId:cat.id,shelf:o.shelf||'',cost:Number(o.cost)||0,price:Number(o.price)||0,minStock:Number(o.minstock)||0,stock:Number(o.stock)||0,baseUnit:o.baseunit||'Pcs',expiry:o.expiry||'',units:[{name:o.baseunit||'Pcs',factor:1,price:Number(o.price)||0}],wholesale:[],bundle:[]});count++;}toast(`${count} produk diimpor/diperbarui.`);e.target.value='';render();}
 function printLabel(p){const w=window.open('','_blank','width=420,height=600');if(!w)return toast('Izinkan pop-up untuk mencetak label.');w.document.write(`<html><head><title>Label Produk</title><style>body{font-family:Arial;padding:20px}.label{border:1px dashed #555;padding:15px;text-align:center;width:230px;margin:10px auto}.barcode{font-family:monospace;font-size:22px;letter-spacing:2px;margin:10px 0}</style></head><body><div class="label"><b>${p.name}</b><div class="barcode">${p.barcode||p.sku}</div><div>${p.sku}</div><h2>${money(p.price)}</h2></div><script>window.print()<\/script></body></html>`);w.document.close();}
-window.addEventListener('mambo-owner-login-success', event => {
- const detail=event.detail||{};
- if(!detail.owner)return;
- user=detail.owner;
- localStorage.setItem(LOCAL_SESSION_KEY,user.id);
- page='dashboard';
- $('#login').classList.add('hidden');
- shell();
- toast('Owner berhasil masuk. '+Number(detail.pulled||0)+' data cloud diperiksa; '+Number(detail.applied||0)+' data diterapkan.');
-});
 $('#ownerCloudLoginBtn')?.addEventListener('click',async()=>{
  const btn=$('#ownerCloudLoginBtn'),err=$('#ownerCloudLoginError');btn.disabled=true;err.textContent='Memeriksa akun Owner dan mengambil data toko…';
  try{
