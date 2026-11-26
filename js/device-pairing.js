@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
     if(p.length<8){panel.querySelector('#inviteError').textContent='Password minimal 8 karakter.';return;}
     if(p!==p2){panel.querySelector('#inviteError').textContent='Konfirmasi password tidak sama.';return;}
     const accept=panel.querySelector('#inviteAccept');accept.disabled=true;
-    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Buka halaman login pada perangkat yang sudah dipasangkan, pilih jabatan '+info.job_title+', lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
+    try{await acceptStaffInvitation(token,p);panel.querySelector('#inviteError').textContent='Akun aktif. Sekarang buka MAMBO KASIR dari browser mana pun, lalu masuk dengan username dan password baru.';history.replaceState({},'',location.pathname);panel.querySelector('#invitePassword').value='';panel.querySelector('#invitePassword2').value='';}
     catch(e){panel.querySelector('#inviteError').textContent=e.message||String(e);}
     finally{accept.disabled=false;}
    };
