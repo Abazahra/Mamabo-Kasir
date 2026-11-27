@@ -6,21 +6,14 @@
   "start_url": "./?source=homescreen",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone"],
   "orientation": "any",
   "background_color": "#f3f5f9",
   "theme_color": "#4b16c8",
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "./assets/mambo-app-icon.svg?v=pwa-install-2",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "./assets/mambo-app-icon.svg?v=pwa-install-2",
-      "sizes": "512x512",
+      "src": "./assets/mambo-app-icon.svg?v=pwa-install-3",
+      "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     }
