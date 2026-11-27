@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480">
+<defs>
+ <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#65c8f5"/><stop offset="1" stop-color="#d9f3ff"/></linearGradient>
+ <linearGradient id="tube" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4c1a2" stop-opacity=".94"/><stop offset=".18" stop-color="#7b3219"/><stop offset=".43" stop-color="#d98b61"/><stop offset=".68" stop-color="#55200f"/><stop offset="1" stop-color="#e8a47d"/></linearGradient>
+ <linearGradient id="shine" x2="1" y2="0"><stop stop-color="#fff" stop-opacity=".7"/><stop offset=".3" stop-color="#fff" stop-opacity=".06"/><stop offset=".8" stop-color="#fff" stop-opacity=".03"/><stop offset="1" stop-color="#fff" stop-opacity=".55"/></linearGradient>
+ <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+ <pattern id="marble" width="68" height="44" patternUnits="userSpaceOnUse"><path d="M-8 12 Q12 -2 28 14 T70 13 M-6 34 Q14 19 32 35 T72 31" fill="none" stroke="#3d160d" stroke-width="8" opacity=".32"/><path d="M-8 22 Q10 8 27 24 T70 22" fill="none" stroke="#f2b18d" stroke-width="5" opacity=".45"/></pattern>
+</defs>
+<rect width="480" height="480" rx="28" fill="url(#bg)"/>
+<g opacity=".78" fill="#fff"><path d="M24 120l34-20 27 22-7 38-39 5-22-21z"/><path d="M388 115l30-18 32 20-8 37-35 8-23-19z"/><path d="M42 390l26-18 34 18-5 34-37 8-24-19z"/></g>
+<g fill="#fff" opacity=".6"><circle cx="90" cy="188" r="4"/><circle cx="400" cy="220" r="5"/><circle cx="320" cy="82" r="4"/><circle cx="170" cy="112" r="3"/><circle cx="438" cy="330" r="4"/></g>
+<path d="M0 275 Q78 245 145 274 T285 270 T480 272 V480 H0Z" fill="#e9f9ff" opacity=".72"/>
+<g transform="rotate(-24 235 300)">
+ <ellipse cx="235" cy="331" rx="200" ry="38" fill="#164d73" opacity=".24" filter="url(#shadow)"/>
+ <path d="M45 270 Q31 270 28 286 Q24 301 42 311 L58 319 Q74 325 91 320 L407 320 Q428 319 435 304 L439 286 Q440 272 421 269 L405 267 74 267Z" fill="#fff" opacity=".7" stroke="#d8f5ff" stroke-width="4"/>
+ <path d="M48 273 Q34 273 35 289 Q36 303 53 309 L72 315 Q85 318 98 313 L401 313 Q420 312 426 298 L430 282 Q430 273 414 273Z" fill="url(#tube)" stroke="#f7d7c3" stroke-width="4"/>
+ <path d="M48 273 Q34 273 35 289 Q36 303 53 309 L72 315 Q85 318 98 313 L401 313 Q420 312 426 298 L430 282 Q430 273 414 273Z" fill="url(#marble)" opacity=".85"/>
+ <path d="M48 274 Q38 280 42 292 Q44 301 57 306 L79 312 Q87 313 95 309 L397 309 Q417 309 422 295 L425 282" fill="none" stroke="url(#shine)" stroke-width="12"/>
+ <path d="M425 270 L447 273 Q456 277 453 290 L448 310 Q446 318 436 317 L416 311 Q427 301 430 286Z" fill="#fff" opacity=".68" stroke="#d6f5ff" stroke-width="4"/>
+ <path d="M431 275 L448 278 L443 311 L425 307" fill="none" stroke="#fff" stroke-width="3" opacity=".85"/>
+ <path d="M29 285 Q18 291 28 303 L43 312 Q36 298 43 280Z" fill="#fff" opacity=".58"/>
+</g>
+<g transform="translate(30 25)">
+ <path d="M14 15 Q14 4 27 4 H407 Q420 4 420 17 V93 Q420 106 407 106 H27 Q14 106 14 93Z" fill="#0755b7" opacity=".95"/>
+ <text x="217" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="900" fill="#fff" stroke="#073d91" stroke-width="2" paint-order="stroke">Coklat</text>
+ <path d="M102 116 Q216 101 332 116 L315 145 Q217 158 119 145Z" fill="#ffdb45" stroke="#fff" stroke-width="4"/>
+ <text x="217" y="139" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" font-weight="800" fill="#52200e">ES MAMBO</text>
+</g>
+<g transform="translate(30 365) rotate(-8)">
+ <path d="M0 16 L22 0 86 0 108 18 90 52 20 50Z" fill="#6d2a16" stroke="#f3b58d" stroke-width="4"/>
+ <path d="M112 22 L135 5 197 9 210 39 183 62 126 55Z" fill="#8a3a20" stroke="#f5c19e" stroke-width="4"/>
+ <path d="M13 14L87 13M126 23L191 25" stroke="#eeb18d" stroke-width="4" opacity=".6"/>
+</g>
+<g fill="#fff" opacity=".8"><path d="M10 220l14-18 18 12-6 23-21 3z"/><path d="M425 185l16-17 20 12-4 24-24 4z"/><path d="M360 420l14-16 20 10-5 24-22 3z"/></g>
+</svg>
