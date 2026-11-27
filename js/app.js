@@ -1,6 +1,6 @@
 import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords} from './db.js?v=operational-normalization-2';
 import {createUser,login,can,roleName} from './auth.js?v=operational-normalization-2';
-import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-6';
+import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-7';
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=owner-login-fix-2';
