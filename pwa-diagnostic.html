@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#4b16c8">
+<title>Diagnostik MAMBO KASIR</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:20px;background:#f3f5f9;color:#202638}
+main{max-width:760px;margin:auto;background:white;padding:20px;border-radius:16px}
+h1{font-size:22px}button{padding:12px 18px;border:0;border-radius:9px;background:#4b16c8;color:white;font-weight:600}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f4f8;padding:14px;border-radius:10px}
+small{color:#596174}
+</style>
+</head>
+<body><main>
+<h1>Diagnostik MAMBO KASIR</h1>
+<p>Halaman ini hanya memeriksa kompatibilitas browser dan ketersediaan file aplikasi. Tidak membaca, mengubah, atau menghapus transaksi, stok, IndexedDB, maupun data Supabase.</p>
+<button id="run">Jalankan pemeriksaan</button>
+<pre id="out">Tekan tombol untuk memulai.</pre>
+<p><small>Kirimkan hasil pemeriksaan ini agar penyebab aplikasi berhenti dapat ditentukan dari kondisi perangkat.</small></p>
+</main>
+<script>
+const out=document.getElementById('out');
+const line=(name,value)=>name+': '+value;
+document.getElementById('run').onclick=async()=>{
+ const rows=[];
+ const add=(n,v)=>rows.push(line(n,v));
+ add('User-Agent',navigator.userAgent);
+ add('Platform',navigator.platform||'tidak tersedia');
+ add('Mode standalone',String(!!(matchMedia('(display-mode: standalone)').matches||navigator.standalone)));
+ add('Online',String(navigator.onLine));
+ add('JavaScript module',typeof HTMLScriptElement!=='undefined'&&'noModule'in HTMLScriptElement.prototype?'didukung':'tidak terdeteksi');
+ add('IndexedDB API',String(!!window.indexedDB));
+ add('Service Worker API',String('serviceWorker'in navigator));
+ add('Crypto.randomUUID',String(!!crypto.randomUUID));
+ add('TextEncoder',String(!!window.TextEncoder));
+ add('ResizeObserver',String(!!window.ResizeObserver));
+ add('BroadcastChannel',String(!!window.BroadcastChannel));
+ add('Memory estimate API',String(!!navigator.storage?.estimate));
+ const checks=['./manifest.json?v=pwa-install-3','./assets/mambo-app-icon.svg?v=pwa-install-3','./js/app.js?v=browser-independent-login-1','./js/db.js?v=operational-normalization-2','./sw.js'];
+ for(const url of checks){
+  try{const r=await fetch(url,{cache:'no-store'});add('File '+url,r.status+' '+r.statusText+' ('+(r.headers.get('content-type')||'tanpa content-type')+')');}
+  catch(e){add('File '+url,'GAGAL: '+(e.message||e));}
+ }
+ try{
+  const mod=await import('./js/db.js?v=operational-normalization-2');
+  add('Import modul database',typeof mod.openDB==='function'?'berhasil':'fungsi tidak ditemukan');
+ }catch(e){add('Import modul database','GAGAL: '+(e.stack||e.message||e));}
+ try{
+  if('serviceWorker'in navigator){
+   const reg=await navigator.serviceWorker.getRegistration('./');
+   add('Service Worker terdaftar',String(!!reg));
+   add('Service Worker aktif',reg?.active?.state||'tidak aktif');
+   add('Service Worker controller',navigator.serviceWorker.controller?.state||'tidak ada');
+  }
+ }catch(e){add('Pemeriksaan Service Worker','GAGAL: '+(e.message||e));}
+ try{const estimate=await navigator.storage?.estimate?.();if(estimate)add('Penyimpanan origin',Math.round((estimate.usage||0)/1048576)+' MB digunakan dari '+Math.round((estimate.quota||0)/1048576)+' MB');}catch(e){add('Estimasi penyimpanan','tidak tersedia');}
+ out.textContent=rows.join('\n');
+};
+</script>
+</body></html>
