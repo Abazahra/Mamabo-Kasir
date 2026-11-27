@@ -59,7 +59,7 @@ export async function replaceDeviceCatalog(products,categories){
    p.clear();c.clear();
    (products||[]).forEach(row=>{
     const prior=old.get(String(row.id));
-    p.put({...row,...(prior?{stock:prior.stock,photo:prior.photo||null,photoType:prior.photoType||row.photoType}: {})});
+    p.put({...row,...(prior?{stock:prior.stock,photo:prior.photo||null,photoType:prior.photoType||row.photoType,photoUrl:row.photoUrl||prior.photoUrl||null}: {})});
    });
    (categories||[]).forEach(row=>c.put(row));
   };
