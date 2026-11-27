@@ -1,10 +1,14 @@
-const CACHE_NAME='mambo-kasir-shell-v1';
-self.addEventListener('install',event=>{self.skipWaiting();});
-self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim());});
-self.addEventListener('fetch',event=>{
- if(event.request.method!=='GET')return;
- const url=new URL(event.request.url);
- if(url.origin!==self.location.origin)return;
- // Network-first: avoid serving stale JavaScript or HTML during deployments.
- event.respondWith(fetch(event.request).catch(()=>caches.match(event.request)));
+// MAMBO KASIR PWA service worker
+// IndexedDB tetap menjadi penyimpanan offline utama.
+// Jangan mencegat request jaringan: versi sebelumnya memakai cache fallback
+// tanpa pernah melakukan precache, sehingga dapat menghasilkan respons kosong.
+self.addEventListener('install', event => {
+  event.waitUntil(self.skipWaiting());
+});
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key.startsWith('mambo-kasir-shell-')).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
 });
