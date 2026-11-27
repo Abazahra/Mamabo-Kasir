@@ -68,13 +68,16 @@ async function shareReceiptWhatsApp(t){
  const money=n=>rp(Number(n)||0);
  const width=900,pad=64,line=42,items=t.items||[],payments=t.payments||[];
  const ctxCanvas=document.createElement('canvas'),ctx=ctxCanvas.getContext('2d');
+ const logoImage=new Image();logoImage.src=new URL('../assets/mambo-app-icon.svg?v=brand-1',import.meta.url).href;
+ try{await logoImage.decode();}catch(error){console.warn('Logo struk tidak dapat dimuat:',error);}
  const wrap=(text,max,font)=>{ctx.font=font;const words=String(text??'').split(' ');const out=[];let row='';for(const word of words){const test=row?row+' '+word:word;if(ctx.measureText(test).width>max&&row){out.push(row);row=word;}else row=test;}if(row)out.push(row);return out.length?out:[''];};
- let height=pad+70+44+4*line+28;
+ let height=pad+160+70+44+4*line+28;
  for(const item of items)height+=Math.max(2,wrap(item.name||'Produk',width-pad*2,'bold 34px Arial').length)*line+line*2+18;
  height+=line*8+payments.length*line+120;
  ctxCanvas.width=width;ctxCanvas.height=height;
  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);
  let y=pad;
+ if(logoImage.complete&&logoImage.naturalWidth){const logoSize=128;ctx.drawImage(logoImage,(width-logoSize)/2,y,logoSize,logoSize);y+=logoSize+24;}
  const center=(text,size,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='center';ctx.fillText(text,width/2,y);y+=size+18;};
  const left=(text,size=30,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(String(text??''),pad,y);y+=size+12;};
  const rule=()=>{ctx.strokeStyle='#aab2bd';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(width-pad,y);ctx.stroke();ctx.setLineDash([]);y+=24;};
@@ -118,18 +121,20 @@ async function receiptPrint(t){
  const payments=(t.payments||[]).map(x=>`<div class="row"><span>${esc(x.method||'Pembayaran')}</span><b>${money(x.amount)}</b></div>`).join('');
  const cash=(t.payments||[]).filter(x=>String(x.method||'').toLowerCase()==='tunai').reduce((a,x)=>a+Number(x.amount||0),0),change=Math.max(0,cash-Number(t.total||0));
  const w=window.open('','_blank','width=460,height=760');if(!w){toast('Izinkan pop-up untuk mencetak struk.');return;}
+ const logoUrl=new URL('../assets/mambo-app-icon.svg?v=brand-1',import.meta.url).href;
+ const logoTag='<img class="brand-logo" src="'+logoUrl+'" alt="Logo MAMBO KASIR">';
  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Struk ${esc(t.receipt||'')}</title><style>
  *{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#111}body{font:11px/1.4 Arial,Helvetica,sans-serif;width:${paper};max-width:100%;margin:0 auto;padding:4mm 3mm}
- .brand{text-align:center;padding:2mm 0 3mm;border-bottom:1px solid #222}.brand h1{font-size:17px;line-height:1.15;margin:0 0 4px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}.brand p{font-size:9px;margin:1px 0;color:#333;overflow-wrap:anywhere}.tag{display:inline-block;border:1px solid #333;border-radius:20px;padding:2px 8px;margin-top:5px;font-size:8px;font-weight:bold;letter-spacing:1px}
+ .brand{text-align:center;padding:2mm 0 3mm;border-bottom:1px solid #222}.brand-logo{display:block;width:22mm;height:22mm;object-fit:contain;margin:0 auto 2mm}.brand h1{font-size:17px;line-height:1.15;margin:0 0 4px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}.brand p{font-size:9px;margin:1px 0;color:#333;overflow-wrap:anywhere}.tag{display:inline-block;border:1px solid #333;border-radius:20px;padding:2px 8px;margin-top:5px;font-size:8px;font-weight:bold;letter-spacing:1px}
  .meta{padding:7px 0;border-bottom:1px dashed #555}.row{display:flex;justify-content:space-between;gap:8px;margin:3px 0}.row span{color:#444}.row b{white-space:nowrap}.item{padding:5px 0;border-bottom:1px dotted #bbb}.name{font-weight:bold;font-size:11px;overflow-wrap:anywhere}.sku{font-size:8px;color:#666}.section{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px}.summary{padding:6px 0;border-bottom:1px dashed #555}.grand{display:flex;justify-content:space-between;align-items:center;background:#f1f1f1;border:1px solid #222;padding:8px 6px;margin:8px 0;font-weight:800}.grand b{font-size:15px;white-space:nowrap}.payments{padding:5px 0;border-bottom:1px dashed #555}.change{font-weight:bold}.customer{padding:6px 0;border-bottom:1px dashed #555}.footer{text-align:center;padding:10px 2px 2px}.footer strong{font-size:11px}.footer p{font-size:9px;color:#444;margin:3px 0}.note{font-size:8px;color:#666;margin-top:7px}
  @page{size:${width}mm auto;margin:0}@media print{html,body{width:${paper};min-width:${paper};margin:0;padding:0;background:#fff}body{padding:3mm 2.5mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
- </style></head><body><header class="brand"><h1>${esc(settings.storeName||'MAMBO KASIR')}</h1>${settings.address?`<p>${esc(settings.address)}</p>`:''}${settings.phone?`<p>Telp. ${esc(settings.phone)}</p>`:''}<span class="tag">BUKTI PEMBAYARAN</span></header>
+ </style></head><body><header class="brand">${logoTag}<h1>${esc(settings.storeName||'MAMBO KASIR')}</h1>${settings.address?`<p>${esc(settings.address)}</p>`:''}${settings.phone?`<p>Telp. ${esc(settings.phone)}</p>`:''}<span class="tag">BUKTI PEMBAYARAN</span></header>
  <section class="meta"><div class="row"><span>No. Struk</span><b>${esc(t.receipt||'-')}</b></div><div class="row"><span>Tanggal</span><b>${esc(t.stamp||'-')}</b></div>${t.cashier?`<div class="row"><span>Kasir</span><b>${esc(t.cashier)}</b></div>`:''}</section>
  <div class="section">Rincian Belanja</div>${items||'<p>Tidak ada rincian produk.</p>'}
  <section class="summary"><div class="row"><span>Subtotal</span><b>${money(t.subtotal)}</b></div>${Number(t.discount)?`<div class="row"><span>Diskon</span><b>− ${money(t.discount)}</b></div>`:''}${Number(t.tax)?`<div class="row"><span>Pajak</span><b>${money(t.tax)}</b></div>`:''}</section>
  <div class="grand"><span>TOTAL BAYAR</span><b>${money(t.total)}</b></div><div class="section">Pembayaran</div><section class="payments">${payments||'<div class="row"><span>Status</span><b>Lunas</b></div>'}${change>0?`<div class="row change"><span>Kembalian</span><b>${money(change)}</b></div>`:''}</section>
  <section class="customer"><div class="row"><span>Pelanggan</span><b>${esc(t.customer||'Pelanggan Umum')}</b></div></section><footer class="footer"><strong>${esc(settings.receiptFooter||'Terima kasih telah berbelanja')}</strong><p>Barang yang sudah dibeli mohon diperiksa kembali.</p><p class="note">Bukti transaksi • ${esc(settings.storeName||'MAMBO KASIR')}</p></footer>
- <script>window.onload=()=>setTimeout(()=>window.print(),250)<\/script></body></html>`);w.document.close();
+ <script>window.onload=()=>{const logo=document.querySelector(".brand-logo");const print=()=>setTimeout(()=>window.print(),300);if(logo&&!logo.complete)logo.onload=print;else print();}<\/script></body></html>`);w.document.close();
 }
 export async function mountShift(root,user){
  const shifts=await all('shifts'),s=shiftForUser(shifts,user),deviceId=currentDeviceId();
