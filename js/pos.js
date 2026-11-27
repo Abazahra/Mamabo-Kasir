@@ -77,17 +77,19 @@ async function shareReceiptWhatsApp(t){
  ctxCanvas.width=width;ctxCanvas.height=height;
  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);
  let y=pad;
- if(logoImage.complete&&logoImage.naturalWidth){const logoSize=112;ctx.drawImage(logoImage,(width-logoSize)/2,y,logoSize,logoSize);y+=logoSize+30;}
  const center=(text,size,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='center';ctx.fillText(text,width/2,y);y+=size+18;};
- const left=(text,size=30,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(String(text??''),pad,y);y+=size+12;};
- const rule=()=>{ctx.strokeStyle='#aab2bd';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(width-pad,y);ctx.stroke();ctx.setLineDash([]);y+=24;};
- const pair=(label,value)=>{ctx.font='30px Arial';ctx.fillStyle='#475569';ctx.textAlign='left';ctx.fillText(label,pad,y);ctx.font='bold 30px Arial';ctx.fillStyle='#111827';ctx.textAlign='right';ctx.fillText(value,width-pad,y);y+=line;};
- y+=12; // beri jarak tambahan antara logo dan nama toko pada e-Struk
- center(settings.storeName||'MAMBO KASIR',48,true);
- if(settings.address)center(settings.address,24,false,'#475569');
- if(settings.phone)center('Telp. '+settings.phone,24,false,'#475569');
- center('BUKTI PEMBAYARAN',25,true);
- rule();
+  const left=(text,size=30,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(String(text??''),pad,y);y+=size+12;};
+  const rule=()=>{ctx.strokeStyle='#aab2bd';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(width-pad,y);ctx.stroke();ctx.setLineDash([]);y+=24;};
+  const pair=(label,value)=>{ctx.font='30px Arial';ctx.fillStyle='#475569';ctx.textAlign='left';ctx.fillText(label,pad,y);ctx.font='bold 30px Arial';ctx.fillStyle='#111827';ctx.textAlign='right';ctx.fillText(value,width-pad,y);y+=line;};
+  const headerTop=y,logoSize=120,logoX=pad,brandX=pad+logoSize+28,brandWidth=width-pad-brandX;
+  if(logoImage.complete&&logoImage.naturalWidth)ctx.drawImage(logoImage,logoX,headerTop,logoSize,logoSize);
+  ctx.fillStyle='#111827';ctx.textAlign='left';ctx.font='bold 43px Arial';ctx.fillText(settings.storeName||'MAMBO KASIR',brandX,headerTop+42,brandWidth);
+  let brandY=headerTop+72;
+  if(settings.address){ctx.font='24px Arial';ctx.fillStyle='#475569';ctx.fillText(settings.address,brandX,brandY,brandWidth);brandY+=27;}
+  if(settings.phone){ctx.font='24px Arial';ctx.fillStyle='#475569';ctx.fillText('Telp. '+settings.phone,brandX,brandY,brandWidth);brandY+=27;}
+  ctx.font='bold 23px Arial';ctx.fillStyle='#111827';ctx.fillText('BUKTI PEMBAYARAN',brandX,brandY,brandWidth);
+  y=headerTop+148;
+  rule();
  pair('No. Struk',t.receipt||'-');pair('Tanggal',t.stamp||'-');if(t.cashier)pair('Kasir',t.cashier);
  rule();left('RINCIAN BELANJA',25,true);
  for(const item of items){
