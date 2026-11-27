@@ -1,0 +1,32 @@
+{
+  "name": "MAMBO KASIR",
+  "short_name": "MAMBO KASIR",
+  "description": "Aplikasi kasir dan pengelolaan toko MAMBO",
+  "id": "./",
+  "start_url": "./?source=homescreen",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f5f9",
+  "theme_color": "#4b16c8",
+  "icons": [
+    {
+      "src": "./assets/mambo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/mambo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/mambo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

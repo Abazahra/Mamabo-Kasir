@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Pages
+      - name: Generate installable app icons\n        run: |\n          sudo apt-get update\n          sudo apt-get install -y librsvg2-bin\n          rsvg-convert -w 192 -h 192 assets/mambo-app-icon.svg > assets/mambo-192.png\n          rsvg-convert -w 512 -h 512 assets/mambo-app-icon.svg > assets/mambo-512.png\n          rsvg-convert -w 180 -h 180 assets/mambo-app-icon.svg > assets/apple-touch-icon.png\n      - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
