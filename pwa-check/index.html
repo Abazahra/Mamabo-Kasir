@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4b16c8">
+<meta name="application-name" content="Uji PWA MAMBO">
+<title>Uji PWA MAMBO</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/svg+xml" href="../assets/mambo-app-icon.svg">
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f3f5f9;color:#172033}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#f3f5f9}
+body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+header{background:#4b16c8;color:white;padding:calc(18px + env(safe-area-inset-top,0px)) 20px 18px;font-weight:700}
+main{flex:1;padding:28px 20px;display:flex;align-items:center;justify-content:center}
+article{width:min(520px,100%);background:#fff;border-radius:20px;padding:26px;box-shadow:0 8px 30px #1a2b4b0c}
+img{width:88px;height:88px;border-radius:20px;display:block;margin:0 auto 18px}
+h1{text-align:center;font-size:23px;margin:0 0 12px}
+p{text-align:center;line-height:1.55;color:#58647a}
+.status{margin-top:20px;padding:12px;border-radius:10px;background:#eeefff;color:#4b16c8;text-align:center;font-weight:600}
+footer{background:#4b16c8;height:calc(12px + env(safe-area-inset-bottom,0px))}
+</style>
+</head>
+<body>
+<header>MAMBO KASIR · UJI PWA</header>
+<main><article>
+<img src="../assets/mambo-app-icon.svg" alt="Logo MAMBO KASIR">
+<h1>Uji Aplikasi Mandiri</h1>
+<p>Halaman uji ini tidak membuka database, transaksi, stok, login, maupun sinkronisasi MAMBO KASIR.</p>
+<p>Jika halaman ini dapat dibuka dari ikon layar utama tanpa bilah browser, berarti mode aplikasi mandiri Android berjalan.</p>
+<div class="status">PWA TEST BERHASIL DIMUAT</div>
+</article></main>
+<footer></footer>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("./sw.js", {scope:"./"}).catch(function (error) {
+      console.log("PWA test service worker:", error);
+    });
+  });
+}
+</script>
+</body>
+</html>
