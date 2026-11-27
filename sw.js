@@ -1,4 +1,4 @@
-const CACHE_NAME='mambo-kasir-shell-v1';
+const CACHE_NAME='mambo-kasir-shell-v2'; // PWA refresh: manifest/icon update
 self.addEventListener('install',event=>{self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim());});
 self.addEventListener('fetch',event=>{
