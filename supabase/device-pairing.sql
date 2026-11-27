@@ -120,6 +120,7 @@ begin
     'price', coalesce(nullif(payload->>'price','')::numeric,0),
     'minStock', coalesce(nullif(payload->>'minStock','')::numeric,0),
     'bundle', coalesce(payload->'bundle','[]'::jsonb),
+    'photoUrl', coalesce(payload->>'photoUrl',''),
     'updatedAt', coalesce(payload->>'updatedAt', updated_at::text)
   ) order by coalesce(payload->>'name','')), '[]'::jsonb)
   into v_products
