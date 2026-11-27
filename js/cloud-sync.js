@@ -106,29 +106,48 @@ async function findProductSkuConflicts(){
  for(const product of localProducts){const sku=String(product.sku||'').trim().toLowerCase();if(!sku)continue;const remote=remoteBySku.get(sku);if(remote&&String(remote.record_id)!==String(product.id))conflicts.push({sku:product.sku,localName:product.name||'(tanpa nama)',remoteName:remote.payload?.name||'(tanpa nama)',localId:product.id,remoteId:remote.record_id});}
  return conflicts;
 }
+async function uploadProductPhoto(recordId,product){
+ const photo=product?.photo;
+ if(typeof photo==='string'&&/^https?:\\/\\//i.test(photo))return photo;
+ if(!(photo instanceof ArrayBuffer)&&!ArrayBuffer.isView(photo))return product?.photoUrl||null;
+ if(!photo.byteLength)return product?.photoUrl||null;
+ const mime=String(product.photoType||'image/jpeg');
+ const ext=mime.split('/')[1]?.replace(/[^a-z0-9]/gi,'')||'jpg';
+ const path=storeId+'/'+String(recordId)+'.'+ext;
+ const cacheKey='mambo_uploaded_product_images_'+storeId;
+ let cache={};try{cache=JSON.parse(localStorage.getItem(cacheKey)||'{}')||{};}catch{}
+ const fingerprint=String(product.updatedAt||'')+':'+photo.byteLength+':'+mime;
+ if(cache[String(recordId)]?.fingerprint===fingerprint&&cache[String(recordId)]?.url)return cache[String(recordId)].url;
+ const body=photo instanceof ArrayBuffer?new Blob([photo],{type:mime}):new Blob([photo.buffer.slice(photo.byteOffset,photo.byteOffset+photo.byteLength)],{type:mime});
+ const {error}=await client.storage.from('mambo-product-images').upload(path,body,{upsert:true,contentType:mime,cacheControl:'3600'});
+ if(error)throw new Error('Gagal mengunggah foto produk '+(product.sku||recordId)+': '+error.message);
+ const url=client.storage.from('mambo-product-images').getPublicUrl(path).data.publicUrl;
+ cache[String(recordId)]={fingerprint,url};localStorage.setItem(cacheKey,JSON.stringify(cache));
+ return url;
+}
 async function prepareProductSyncPayload(recordId,payload,localProducts){
  const local=localProducts.get(String(recordId));
- const source=local?{...payload,photo:local.photo??payload?.photo,photoType:local.photoType||payload?.photoType,photoUrl:local.photoUrl||payload?.photoUrl}:({...payload});
- let photoUrl=source.photoUrl||null;
- const photo=source.photo;
- const isBinary=photo instanceof ArrayBuffer || ArrayBuffer.isView(photo);
- if(isBinary&&photo.byteLength){
-  const mime=String(source.photoType||'image/jpeg');
-  const ext=mime.split('/')[1]?.replace(/[^a-z0-9]/gi,'')||'jpg';
-  const path=storeId+'/'+String(recordId)+'.'+ext;
-  const body=photo instanceof ArrayBuffer?new Blob([photo],{type:mime}):new Blob([photo.buffer.slice(photo.byteOffset,photo.byteOffset+photo.byteLength)],{type:mime});
-  const {error}=await client.storage.from('mambo-product-images').upload(path,body,{upsert:true,contentType:mime,cacheControl:'3600'});
-  if(error)throw new Error('Gagal mengunggah foto produk '+(source.sku||recordId)+': '+error.message);
-  photoUrl=client.storage.from('mambo-product-images').getPublicUrl(path).data.publicUrl;
- }else if(typeof photo==='string'&&/^https?:\\/\\//i.test(photo)){
-  photoUrl=photo;
- }
+ const source=local?{...payload,photo:local.photo??payload?.photo,photoType:local.photoType||payload?.photoType,updatedAt:local.updatedAt||payload?.updatedAt,sku:local.sku||payload?.sku,photoUrl:local.photoUrl||payload?.photoUrl}:({...payload});
+ const photoUrl=await uploadProductPhoto(recordId,source);
  const clean={...source,photoUrl};
  delete clean.photo;
  delete clean.photoType;
  return clean;
 }
-export async function syncNow(){if(busy)return syncPromise||{ok:false,error:'Sinkronisasi sedang berjalan.'};if(!navigator.onLine)return {ok:false,error:'Perangkat sedang offline.'};if(!client||!session||!storeId){status('offline');const el=document.querySelector('#syncStatus');if(el)el.title='Internet tersedia; konfigurasi/login Supabase belum aktif.';return {ok:false,error:'Sesi Supabase atau Store ID belum aktif.'};}busy=true;status('syncing');syncPromise=(async()=>{try{const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);const conflicts=await findProductSkuConflicts();if(conflicts.length){const detail=conflicts.slice(0,8).map(x=>'SKU '+x.sku+': laptop "'+x.localName+'" ↔ pusat "'+x.remoteName+'"').join('; ');const more=conflicts.length>8?' (dan '+(conflicts.length-8)+' benturan lainnya)':'';status('offline');return {ok:false,error:'Sinkronisasi dihentikan demi keamanan. Ditemukan '+conflicts.length+' SKU produk yang bertabrakan: '+detail+more+'. Antrean lokal tidak dikirim atau dihapus.'};}let pushed=0;const productRows=queue.some(x=>x.entity==='products'&&x.operation!=='delete')?await all('products'):[];const productMap=new Map(productRows.map(p=>[String(p.id),p]));for(const item of queue){if(!ENTITIES.has(item.entity)){await remove('syncQueue',item.id);continue;}let payload=item.payload||{};if(item.entity==='products'&&item.operation!=='delete')payload=await prepareProductSyncPayload(item.recordId,payload,productMap);const row={store_id:storeId,entity:item.entity,record_id:String(item.recordId),payload,deleted:item.operation==='delete',updated_at:new Date().toISOString()};const {error}=await client.from('mambo_sync_records').upsert(row,{onConflict:'store_id,entity,record_id'});if(error)throw error;await remove('syncQueue',item.id);pushed++;notifyQueue();}let page=0,allRows=[];while(true){const {data,error}=await client.from('mambo_sync_records').select('entity,record_id,payload,deleted').eq('store_id',storeId).range(page*500,page*500+499);if(error)throw error;allRows=allRows.concat(data||[]);if(!data||data.length<500)break;page++;}const result=await applyCloudRows(allRows);status('online');notifyQueue();window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:result}));return {ok:true,pushed,pulled:allRows.length,applied:result.applied,skipped:result.skipped,pending:await pendingSyncCount()};}catch(e){console.warn('Supabase sync:',e.message);status('offline');return {ok:false,error:e.message||String(e)};}finally{busy=false;syncPromise=null;}})();return await syncPromise;}
+async function syncLocalProductPhotos(){
+ const products=await all('products');
+ for(const product of products){
+  const photoUrl=await uploadProductPhoto(product.id,product);
+  if(!photoUrl)continue;
+  const {data,error}=await client.from('mambo_sync_records').select('payload').eq('store_id',storeId).eq('entity','products').eq('record_id',String(product.id)).maybeSingle();
+  if(error)throw error;
+  const payload={...(data?.payload||product),photoUrl};
+  delete payload.photo;delete payload.photoType;
+  const {error:saveError}=await client.from('mambo_sync_records').upsert({store_id:storeId,entity:'products',record_id:String(product.id),payload,deleted:false,updated_at:new Date().toISOString()},{onConflict:'store_id,entity,record_id'});
+  if(saveError)throw saveError;
+ }
+}
+export async function syncNow(){if(busy)return syncPromise||{ok:false,error:'Sinkronisasi sedang berjalan.'};if(!navigator.onLine)return {ok:false,error:'Perangkat sedang offline.'};if(!client||!session||!storeId){status('offline');const el=document.querySelector('#syncStatus');if(el)el.title='Internet tersedia; konfigurasi/login Supabase belum aktif.';return {ok:false,error:'Sesi Supabase atau Store ID belum aktif.'};}busy=true;status('syncing');syncPromise=(async()=>{try{const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);const conflicts=await findProductSkuConflicts();if(conflicts.length){const detail=conflicts.slice(0,8).map(x=>'SKU '+x.sku+': laptop "'+x.localName+'" ↔ pusat "'+x.remoteName+'"').join('; ');const more=conflicts.length>8?' (dan '+(conflicts.length-8)+' benturan lainnya)':'';status('offline');return {ok:false,error:'Sinkronisasi dihentikan demi keamanan. Ditemukan '+conflicts.length+' SKU produk yang bertabrakan: '+detail+more+'. Antrean lokal tidak dikirim atau dihapus.'};}let pushed=0;const productRows=queue.some(x=>x.entity==='products'&&x.operation!=='delete')?await all('products'):[];const productMap=new Map(productRows.map(p=>[String(p.id),p]));for(const item of queue){if(!ENTITIES.has(item.entity)){await remove('syncQueue',item.id);continue;}let payload=item.payload||{};if(item.entity==='products'&&item.operation!=='delete')payload=await prepareProductSyncPayload(item.recordId,payload,productMap);const row={store_id:storeId,entity:item.entity,record_id:String(item.recordId),payload,deleted:item.operation==='delete',updated_at:new Date().toISOString()};const {error}=await client.from('mambo_sync_records').upsert(row,{onConflict:'store_id,entity,record_id'});if(error)throw error;await remove('syncQueue',item.id);pushed++;notifyQueue();}await syncLocalProductPhotos();let page=0,allRows=[];while(true){const {data,error}=await client.from('mambo_sync_records').select('entity,record_id,payload,deleted').eq('store_id',storeId).range(page*500,page*500+499);if(error)throw error;allRows=allRows.concat(data||[]);if(!data||data.length<500)break;page++;}const result=await applyCloudRows(allRows);status('online');notifyQueue();window.dispatchEvent(new CustomEvent('mambo-cloud-pulled',{detail:result}));return {ok:true,pushed,pulled:allRows.length,applied:result.applied,skipped:result.skipped,pending:await pendingSyncCount()};}catch(e){console.warn('Supabase sync:',e.message);status('offline');return {ok:false,error:e.message||String(e)};}finally{busy=false;syncPromise=null;}})();return await syncPromise;}
 export async function startCloudSync(){if(syncStarted)return;syncStarted=true;try{await ensureClient();}catch(e){console.warn(e);}const tick=()=>{if(navigator.onLine)syncNow();else status('offline');};window.addEventListener('online',tick);window.addEventListener('offline',()=>status('offline'));document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick();});if(navigator.onLine)tick();else status('offline');setInterval(tick,20000);}
 export async function cloudStatus(){await ensureClient();return {configured:!!client,authenticated:!!session,storeId};}
 export async function pendingSyncCount(){return (await all('syncQueue')).length;}
