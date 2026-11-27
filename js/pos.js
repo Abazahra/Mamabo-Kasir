@@ -82,6 +82,7 @@ async function shareReceiptWhatsApp(t){
  const left=(text,size=30,bold=false,color='#111827')=>{ctx.font=(bold?'bold ':'')+size+'px Arial';ctx.fillStyle=color;ctx.textAlign='left';ctx.fillText(String(text??''),pad,y);y+=size+12;};
  const rule=()=>{ctx.strokeStyle='#aab2bd';ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(width-pad,y);ctx.stroke();ctx.setLineDash([]);y+=24;};
  const pair=(label,value)=>{ctx.font='30px Arial';ctx.fillStyle='#475569';ctx.textAlign='left';ctx.fillText(label,pad,y);ctx.font='bold 30px Arial';ctx.fillStyle='#111827';ctx.textAlign='right';ctx.fillText(value,width-pad,y);y+=line;};
+ y+=12; // beri jarak tambahan antara logo dan nama toko pada e-Struk
  center(settings.storeName||'MAMBO KASIR',48,true);
  if(settings.address)center(settings.address,24,false,'#475569');
  if(settings.phone)center('Telp. '+settings.phone,24,false,'#475569');
