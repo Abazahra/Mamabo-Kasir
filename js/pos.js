@@ -4,7 +4,7 @@ import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
 let cart=[],disc=0,discType='rp',tax=false,round=0,customerId='';
 const photoCache=new Map();
-function productPhoto(p){if(!p?.photo)return '';const key=p.id+':'+(p.updatedAt||'');if(!photoCache.has(key))photoCache.set(key,URL.createObjectURL(new Blob([p.photo],{type:p.photoType||'image/jpeg'})));return photoCache.get(key);}
+function productPhoto(p){if(!p?.photo)return '';if(typeof p.photo==='string')return p.photo;const key=p.id+':'+(p.updatedAt||'');if(!photoCache.has(key))photoCache.set(key,URL.createObjectURL(new Blob([p.photo],{type:p.photoType||'image/jpeg'})));return photoCache.get(key);}
 const toast=s=>{const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)};
 const totals=()=>{const sub=cart.reduce((a,x)=>a+x.price*x.qty,0),d=discType==='pct'?sub*disc/100:disc,net=Math.max(0,sub-d),vat=tax?net*.11:0,raw=net+vat;return{sub,d,vat,total:round?Math.ceil(raw/round)*round:Math.round(raw)}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
