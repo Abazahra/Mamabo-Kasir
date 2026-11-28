@@ -69,6 +69,56 @@ export async function replaceDeviceCatalog(products,categories){
 }
 
 
+
+export async function cleanupDemoCatalog(expectedProducts,expectedCategories){
+ const db=await openDB();
+ const skuPattern=/^BRG-(00[1-9]|01[0-5])$/;
+ const names=['products','categories','syncQueue'];
+ return new Promise((resolve,reject)=>{
+  const tx=db.transaction(names,'readwrite');
+  const products=tx.objectStore('products'),categories=tx.objectStore('categories'),queue=tx.objectStore('syncQueue');
+  let failure=null,result=null;
+  const [pReq,cReq,qReq]=[products.getAll(),categories.getAll(),queue.getAll()];
+  let completed=0;
+  const ready=()=>{
+   if(++completed!==3)return;
+   try{
+    const pRows=pReq.result||[],cRows=cReq.result||[],qRows=qReq.result||[];
+    const expected=expectedProducts||[],expectedCats=expectedCategories||[];
+    const actual=pRows.filter(p=>skuPattern.test(String(p.sku||'')));
+    if(actual.length!==expected.length||actual.some(p=>!expected.some(x=>String(x.id)===String(p.id)&&String(x.sku)===String(p.sku))))
+     throw Error('Daftar produk BRG-001 s.d. BRG-015 berubah atau tidak lengkap. Tidak ada data yang dihapus.');
+    const removeIds=new Set(actual.map(p=>String(p.id)));
+    const queueProducts=qRows.filter(q=>q.entity==='products'&&removeIds.has(String(q.recordId)));
+    for(const product of actual){
+     const matches=queueProducts.filter(q=>String(q.recordId)===String(product.id));
+     if(matches.length!==1||matches[0].operation!=='upsert'||String(matches[0].payload?.sku||'')!==String(product.sku))
+      throw Error('Antrean produk '+product.sku+' tidak sesuai. Pembersihan dibatalkan.');
+    }
+    const expectedCatIds=new Set(expectedCats.map(x=>String(x.id)));
+    const actualCats=cRows.filter(c=>expectedCatIds.has(String(c.id)));
+    if(actualCats.length!==expectedCats.length||actualCats.some(c=>!expectedCats.some(x=>String(x.id)===String(c.id)&&String(x.name)===String(c.name))))
+     throw Error('Daftar kategori demo berubah. Tidak ada data yang dihapus.');
+    for(const cat of actualCats){
+     if(pRows.some(p=>!removeIds.has(String(p.id))&&String(p.categoryId||'')===String(cat.id)))
+      throw Error('Kategori '+cat.name+' masih dipakai produk lain. Pembersihan kategori dibatalkan.');
+     const matches=qRows.filter(q=>q.entity==='categories'&&String(q.recordId)===String(cat.id));
+     if(matches.length!==1||matches[0].operation!=='upsert'||String(matches[0].payload?.name||'')!==String(cat.name))
+      throw Error('Antrean kategori '+cat.name+' tidak sesuai. Pembersihan dibatalkan.');
+    }
+    for(const product of actual)products.delete(product.id);
+    for(const cat of actualCats)categories.delete(cat.id);
+    for(const q of [...queueProducts,...qRows.filter(q=>q.entity==='categories'&&expectedCatIds.has(String(q.recordId)))])queue.delete(q.id);
+    result={productsRemoved:actual.length,categoriesRemoved:actualCats.length,queueRemoved:queueProducts.length+qRows.filter(q=>q.entity==='categories'&&expectedCatIds.has(String(q.recordId))).length};
+   }catch(e){failure=e;try{tx.abort();}catch{}}
+  };
+  for(const req of [pReq,cReq,qReq]){req.onsuccess=ready;req.onerror=()=>{failure=req.error||new Error('Gagal membaca database lokal.');try{tx.abort();}catch{}};}
+  tx.oncomplete=()=>resolve(result);
+  tx.onerror=()=>reject(failure||tx.error||new Error('Pembersihan gagal.'));
+  tx.onabort=()=>reject(failure||tx.error||new Error('Pembersihan dibatalkan.'));
+ });
+}
+
 export async function discardVerifiedDemoRecords(expected){
  const db=await openDB();
  const entities=[...new Set((expected||[]).map(x=>x.entity))];
