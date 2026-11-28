@@ -1,4 +1,4 @@
-import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords,cleanupDemoCatalog} from './db.js?v=demo-cleanup-2';
+import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords,cleanupDemoCatalog} from './db.js?v=photo-propagation-1';
 import {createUser,login,can,roleName} from './auth.js?v=operational-normalization-2';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-status-2';
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
