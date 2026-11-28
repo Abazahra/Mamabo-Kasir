@@ -87,29 +87,38 @@ export async function cleanupDemoCatalog(expectedProducts,expectedCategories){
     if(expected.length&&actualProducts.length!==expected.length)throw Error('Daftar produk demo lokal tidak cocok. Tidak ada data dihapus.');
     for(const p of actualProducts)if(!expected.some(x=>String(x.id)===String(p.id)&&String(x.sku)===String(p.sku)))throw Error('Identitas produk demo berubah. Pembersihan dibatalkan.');
     const queuedProducts=qRows.filter(q=>q.entity==='products'&&q.operation!=='delete'&&skuPattern.test(String(q.payload?.sku||'')));
-    const queueIds=new Set(queuedProducts.map(q=>String(q.recordId)));
     for(const q of queuedProducts){
      if(!q.recordId||String(q.payload?.id??q.recordId)!==String(q.recordId))throw Error('Identitas antrean produk tidak konsisten. Pembersihan dibatalkan.');
      const local=pRows.find(p=>String(p.id)===String(q.recordId));
      if(local&&String(local.sku)!==String(q.payload?.sku))throw Error('SKU antrean berbeda dari produk lokal. Pembersihan dibatalkan.');
     }
-    const expectedQueueIds=new Set(expected.map(x=>String(x.id)));
-    if(expected.length&&expected.some(x=>!queueIds.has(String(x.id))))throw Error('Antrean produk demo tidak lengkap. Pembersihan dibatalkan.');
+    if(expected.length&&expected.some(x=>!queuedProducts.some(q=>String(q.recordId)===String(x.id))))throw Error('Antrean produk demo tidak lengkap. Pembersihan dibatalkan.');
     const categoryQueue=qRows.filter(q=>q.entity==='categories'&&q.operation!=='delete'&&expectedCats.some(x=>String(x.id)===String(q.recordId)&&String(x.name)===String(q.payload?.name||'')));
     if(expectedCats.length&&categoryQueue.length!==expectedCats.length)throw Error('Antrean kategori demo tidak cocok. Pembersihan dibatalkan.');
     const catsToRemove=(expectedCats||[]).filter(c=>cRows.some(x=>String(x.id)===String(c.id)&&String(x.name)===String(c.name)));
-    for(const cat of catsToRemove){
-     if(pRows.some(p=>!skuPattern.test(String(p.sku||''))&&String(p.categoryId||'')===String(cat.id)))throw Error('Kategori '+cat.name+' masih dipakai produk lain. Kategori dipertahankan.');
-    }
+    for(const cat of catsToRemove)if(pRows.some(p=>!skuPattern.test(String(p.sku||''))&&String(p.categoryId||'')===String(cat.id)))throw Error('Kategori '+cat.name+' masih dipakai produk lain. Kategori dipertahankan.');
     for(const p of actualProducts)ps.delete(p.id);
     for(const c of catsToRemove)cs.delete(c.id);
-    for(const q of queuedProducts)qs.delete(q.id);
-    for(const q of categoryQueue)qs.delete(q.id);
-    result={productsRemoved:actualProducts.length,categoriesRemoved:catsToRemove.length,productQueueRemoved:queuedProducts.length,categoryQueueRemoved:categoryQueue.length};
+    // Delete by cursor primary key rather than assuming the queue row's id property is populated.
+    const cursorReq=qs.openCursor();
+    let queueDeleted=0;
+    cursorReq.onsuccess=()=>{
+     const cursor=cursorReq.result;
+     if(!cursor)return;
+     const q=cursor.value;
+     if(q.entity==='products'&&q.operation!=='delete'&&skuPattern.test(String(q.payload?.sku||''))){
+      cursor.delete();queueDeleted++;
+     }else if(q.entity==='categories'&&categoryQueue.some(x=>String(x.recordId)===String(q.recordId)&&String(x.payload?.name||'')===String(q.payload?.name||''))){
+      cursor.delete();queueDeleted++;
+     }
+     cursor.continue();
+    };
+    cursorReq.onerror=()=>{failure=cursorReq.error||new Error('Gagal membaca antrean.');try{tx.abort();}catch{}};
+    result={productsRemoved:actualProducts.length,categoriesRemoved:catsToRemove.length,productQueueRemoved:queuedProducts.length,categoryQueueRemoved:categoryQueue.length,queueDeleteRequests:()=>queueDeleted};
    }catch(e){failure=e;try{tx.abort();}catch{}}
   };
   for(const r of [pr,cr,qr]){r.onsuccess=ready;r.onerror=()=>{failure=r.error||new Error('Gagal membaca IndexedDB.');try{tx.abort();}catch{}};}
-  tx.oncomplete=()=>resolve(result);
+  tx.oncomplete=()=>resolve({...result,queueDeleteRequests:result.queueDeleteRequests()});
   tx.onerror=()=>reject(failure||tx.error||new Error('Pembersihan gagal.'));
   tx.onabort=()=>reject(failure||tx.error||new Error('Pembersihan dibatalkan.'));
  });
