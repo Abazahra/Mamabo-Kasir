@@ -20,6 +20,7 @@ function acceptOwnerLogin(detail){
  shell();
  toast('Owner berhasil masuk. '+Number(detail.pulled||0)+' data cloud diperiksa; '+Number(detail.applied||0)+' data diterapkan.');
 }
+window.__mamboAcceptOwnerLogin=acceptOwnerLogin;
 window.addEventListener('mambo-owner-login-success',event=>acceptOwnerLogin(event.detail));
 if(window.__mamboOwnerLoginPending){
  const pending=window.__mamboOwnerLoginPending;
