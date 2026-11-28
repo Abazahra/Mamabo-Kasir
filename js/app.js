@@ -66,8 +66,13 @@ async function inspectLocalSyncQueue(){
    try{
     const result=await reconcileDeviceCatalogQueue();
     wrap.remove();
-    toast('Rekonsiliasi selesai: '+result.removed+' antrean identik diamankan; '+result.catalogRemaining+' antrean katalog masih perlu pemeriksaan.');
-    inspectLocalSyncQueue();
+    const detailRows=(result.details||[]).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity)+'</td><td><code>'+htmlSafe(item.recordId)+'</code></td><td>'+(item.safe?'<span class="success">Cocok</span>':'<span class="error">Perlu pemeriksaan</span>')+'</td><td>'+htmlSafe(item.reason||'-')+'</td></tr>').join('');
+    const report=document.createElement('div');report.className='modal-backdrop';
+    report.innerHTML='<section class="modal queue-inspector"><h2>Hasil Rekonsiliasi Katalog</h2><p class="muted">Hanya antrean yang terbukti cocok yang dilepas. Data katalog dan transaksi tidak diubah.</p><h3>'+result.removed+' antrean cocok diamankan</h3><p>Masih tertunda: '+result.catalogRemaining+' antrean katalog. Tidak ditemukan: '+result.missing+'. Berbeda: '+result.different+'.</p><div class="table-wrap"><table><thead><tr><th>Jenis</th><th>Record ID</th><th>Status</th><th>Alasan</th></tr></thead><tbody>'+detailRows+'</tbody></table></div><p class="muted">Record yang berbeda atau tidak ditemukan tetap berada di antrean lokal.</p><div class="modal-actions"><button class="secondary" id="refreshAfterReconcile">Perbarui antrean</button><button class="primary" id="closeReconcileReport">Tutup</button></div></section>';
+    document.body.append(report);
+    report.querySelector('#closeReconcileReport').onclick=()=>report.remove();
+    report.querySelector('#refreshAfterReconcile').onclick=()=>{report.remove();inspectLocalSyncQueue();};
+    toast('Rekonsiliasi: '+result.removed+' cocok; '+result.catalogRemaining+' masih tertunda.');
    }catch(error){
     action.disabled=false;action.textContent='Cocokkan Katalog dengan Cloud';
     const note=document.createElement('p');note.className='error';note.textContent='Rekonsiliasi dibatalkan tanpa mengubah antrean: '+(error.message||error);
