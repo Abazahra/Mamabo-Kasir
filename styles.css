@@ -87,3 +87,7 @@
 .reconcile-field span,.reconcile-field code{font-size:12px;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 .reconcile-item .success{color:var(--good)}
 .reconcile-item .error{color:var(--bad)}
+
+
+/* Foto produk POS: tampilkan seluruh komposisi tanpa terpotong */
+.pos-product-photo{object-fit:contain!important;object-position:center center!important;background:#eaf5ff!important;padding:3px!important}
