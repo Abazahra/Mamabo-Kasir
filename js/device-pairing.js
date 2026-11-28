@@ -64,6 +64,10 @@ export async function reconcileDeviceCatalogQueue(){
  if(!data||data.store_id!==saved.storeId)throw Error('Identitas toko dari server tidak cocok. Tidak ada antrean yang diubah.');
  const queue=(await all('syncQueue')).filter(x=>['products','categories'].includes(x.entity));
  const remote={products:new Map((data.products||[]).map(x=>[String(x.id),x])),categories:new Map((data.categories||[]).map(x=>[String(x.id),x]))};
+ const remoteProductsBySku=new Map();
+ for(const row of data.products||[]){const sku=String(row.sku||'').trim().toUpperCase();if(!sku)continue;if(!remoteProductsBySku.has(sku))remoteProductsBySku.set(sku,[]);remoteProductsBySku.get(sku).push(row);}
+ const remoteCategoriesByName=new Map();
+ for(const row of data.categories||[]){const name=String(row.name||'').trim().toLocaleLowerCase('id-ID');if(!name)continue;if(!remoteCategoriesByName.has(name))remoteCategoriesByName.set(name,[]);remoteCategoriesByName.get(name).push(row);}
  const report={checked:queue.length,matched:0,missing:0,different:0,removed:0,details:[]};
  for(const item of queue){
   const server=remote[item.entity].get(String(item.recordId));
@@ -72,7 +76,22 @@ export async function reconcileDeviceCatalogQueue(){
    safe=!server;
    reason=safe?'Record sudah tidak ada di katalog Cloud':'Record masih ada di Cloud; antrean hapus dipertahankan';
   }else if(!server){
-   report.missing++;reason='Record tidak ditemukan di katalog Cloud; antrean dipertahankan';
+   report.missing++;
+   if(item.entity==='products'){
+    const sku=String(item.payload?.sku||'').trim().toUpperCase();
+    const candidates=sku?(remoteProductsBySku.get(sku)||[]):[];
+    reason=candidates.length
+     ?'ID tidak ditemukan; SKU yang sama ada di Cloud dengan ID berbeda: '+candidates.map(x=>String(x.id)).join(', ')
+     :'ID dan SKU tidak ditemukan pada katalog Cloud';
+    item._candidate=candidates.map(x=>({id:x.id,name:x.name,sku:x.sku}));
+   }else{
+    const name=String(item.payload?.name||'').trim().toLocaleLowerCase('id-ID');
+    const candidates=name?(remoteCategoriesByName.get(name)||[]):[];
+    reason=candidates.length
+     ?'ID kategori tidak ditemukan; nama kategori yang sama ada di Cloud dengan ID berbeda: '+candidates.map(x=>String(x.id)).join(', ')
+     :'ID dan nama kategori tidak ditemukan pada katalog Cloud';
+    item._candidate=candidates.map(x=>({id:x.id,name:x.name}));
+   }
   }else if(sameCatalogRecord(item.entity,item.payload||{},server).same){
    safe=true;reason=sameCatalogRecord(item.entity,item.payload||{},server).reason;
   }else{
@@ -83,7 +102,15 @@ export async function reconcileDeviceCatalogQueue(){
    await remove('syncQueue',item.id);
    report.removed++;
   }
-  report.details.push({entity:item.entity,recordId:String(item.recordId),safe,reason});
+  report.details.push({
+   entity:item.entity,recordId:String(item.recordId),safe,reason,
+   localSku:item.payload?.sku||'',
+   localName:item.payload?.name||'',
+   localBarcode:item.payload?.barcode||'',
+   localPrice:item.payload?.price??'',
+   localCategoryId:item.payload?.categoryId||'',
+   candidates:item._candidate||[]
+  });
  }
  report.remaining=(await all('syncQueue')).length;
  report.catalogRemaining=(await all('syncQueue')).filter(x=>['products','categories'].includes(x.entity)).length;
