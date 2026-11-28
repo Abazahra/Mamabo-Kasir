@@ -4,7 +4,7 @@ import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-dra
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=catalog-diagnostic-2';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-1';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-2';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -41,31 +41,28 @@ function queueItemDescription(item){
 
 async function cleanupDemoProductsR17(){
  const pattern=/^BRG-(00[1-9]|01[0-5])$/;
- const products=(await all('products')).filter(p=>pattern.test(String(p.sku||'')));
- const productIds=new Set(products.map(p=>String(p.id)));
+ const localProducts=(await all('products')).filter(p=>pattern.test(String(p.sku||'')));
  const queue=await all('syncQueue');
- const productQueue=queue.filter(q=>q.entity==='products'&&productIds.has(String(q.recordId)));
+ const productQueue=queue.filter(q=>q.entity==='products'&&q.operation!=='delete'&&pattern.test(String(q.payload?.sku||'')));
+ const localIds=new Set(localProducts.map(p=>String(p.id)));
+ const productsToRemove=localProducts.map(p=>({id:p.id,sku:p.sku}));
  const categories=await all('categories');
- const usedByDemo=new Set(products.map(p=>String(p.categoryId||'')).filter(Boolean));
- const otherProducts=(await all('products')).filter(p=>!productIds.has(String(p.id)));
- const categoryQueue=queue.filter(q=>q.entity==='categories');
- const categoriesToRemove=categories.filter(c=>usedByDemo.has(String(c.id))&&!otherProducts.some(p=>String(p.categoryId||'')===String(c.id))&&categoryQueue.some(q=>String(q.recordId)===String(c.id)));
- const categoryQueueRows=categoryQueue.filter(q=>categoriesToRemove.some(c=>String(c.id)===String(q.recordId)));
- if(products.length!==15||productQueue.length!==15||productQueue.some(q=>q.operation!=='upsert')||categoriesToRemove.some(c=>categoryQueueRows.filter(q=>String(q.recordId)===String(c.id)).length!==1)) {
-  const error='Pembersihan otomatis dibatalkan: ditemukan '+products.length+' produk demo, '+productQueue.length+' antrean produk, dan '+categoriesToRemove.length+' kategori yang memenuhi syarat. Jumlah/antrean harus diverifikasi dahulu.';
-  throw Error(error);
- }
- const backup={app:'MAMBO KASIR',type:'backup-demo-cleanup',createdAt:new Date().toISOString(),device:JSON.parse(localStorage.getItem('mambo_paired_device')||'null')?.deviceId||'unknown',products,categories:categoriesToRemove,queue:[...productQueue,...categoryQueueRows]};
+ const categoryQueue=queue.filter(q=>q.entity==='categories'&&q.operation!=='delete');
+ const referencedCategoryIds=new Set(localProducts.map(p=>String(p.categoryId||'')).filter(Boolean));
+ const categoriesToRemove=categories.filter(c=>referencedCategoryIds.has(String(c.id))&&
+  !(awaitNever()).has(String(c.id)));
+ function awaitNever(){return new Set();}
+ const backup={app:'MAMBO KASIR',type:'backup-demo-cleanup',createdAt:new Date().toISOString(),device:JSON.parse(localStorage.getItem('mambo_paired_device')||'null')?.deviceId||'unknown',products:localProducts,productQueue,categories:[],categoryQueue:[]};
  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='MAMBO-R17-backup-demo-BRG-001-015-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
- if(!confirm('Backup JSON sudah diminta untuk diunduh. Pastikan file backup tersimpan di HP. Lanjutkan menghapus tepat 15 produk demo BRG-001–BRG-015, kategori yang hanya dipakai produk demo, dan antrean terkait? Transaksi, Shift, stok lain, dan produk lain tidak disentuh.'))return {cancelled:true};
- const result=await cleanupDemoCatalog(products.map(p=>({id:p.id,sku:p.sku})),categoriesToRemove.map(c=>({id:c.id,name:c.name})));
- const remain=(await all('products')).filter(p=>pattern.test(String(p.sku||''))).length;
- const qRemain=(await all('syncQueue')).filter(q=>(q.entity==='products'&&pattern.test(String(q.payload?.sku||''))));
- if(remain||qRemain.length)throw Error('Sebagian data demo masih tersisa: produk '+remain+', antrean '+qRemain.length+'. Jangan ulangi; kirim hasil ini untuk pemeriksaan.');
- return {...result,remainingProducts:remain,remainingQueue:qRemain.length};
+ if(!confirm('Backup JSON sudah diminta untuk diunduh. Lanjutkan menghapus produk lokal dengan SKU BRG-001–BRG-015 dan seluruh antrean produk yang payload-nya memiliki SKU tersebut? Kategori tidak dihapus pada tahap ini. Transaksi, Shift, stok lain, dan produk lain tidak disentuh.'))return {cancelled:true};
+ const result=await cleanupDemoCatalog(productsToRemove,[]);
+ const remainingProducts=(await all('products')).filter(p=>pattern.test(String(p.sku||''))).length;
+ const remainingQueue=(await all('syncQueue')).filter(q=>q.entity==='products'&&pattern.test(String(q.payload?.sku||''))).length;
+ if(remainingProducts||remainingQueue)throw Error('Masih tersisa produk demo '+remainingProducts+' dan antrean produk demo '+remainingQueue+'. Jangan ulangi; kirim hasil pemeriksaan.');
+ return {...result,remainingProducts,remainingQueue,categoryQueueReview:categoryQueue.length};
 }
 
 async function inspectLocalSyncQueue(){
