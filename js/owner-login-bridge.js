@@ -29,8 +29,17 @@ export async function loginOwner(button) {
 
     const successDetail = { owner, pulled: result.pulled || 0, applied: result.applied || 0 };
     window.__mamboOwnerLoginPending = successDetail;
+    // Gunakan callback langsung bila modul utama sudah siap; event tetap dipertahankan untuk kompatibilitas.
+    if (typeof window.__mamboAcceptOwnerLogin === 'function') {
+      window.__mamboAcceptOwnerLogin(successDetail);
+      delete window.__mamboOwnerLoginPending;
+    }
     window.dispatchEvent(new CustomEvent('mambo-owner-login-success', { detail: successDetail }));
-    if (errorBox) errorBox.textContent = 'Login berhasil. Dashboard Owner sedang dibuka…';
+    if (document.getElementById('app')?.classList.contains('hidden')) {
+      // Jika modul utama belum terpasang, muat ulang agar sesi Owner tersimpan dipulihkan saat boot.
+      if (errorBox) errorBox.textContent = 'Login berhasil. Memuat ulang dashboard Owner…';
+      setTimeout(() => { if (document.getElementById('app')?.classList.contains('hidden')) window.location.reload(); }, 700);
+    } else if (errorBox) errorBox.textContent = 'Login berhasil. Dashboard Owner sedang dibuka…';
     button.textContent = 'Berhasil masuk';
   } catch (error) {
     console.error('Owner login:', error);
