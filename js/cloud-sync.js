@@ -113,11 +113,14 @@ async function uploadProductPhoto(recordId,product){
  if(!photo.byteLength)return product?.photoUrl||null;
  const mime=String(product.photoType||'image/jpeg');
  const ext=mime.split('/')[1]?.replace(/[^a-z0-9]/gi,'')||'jpg';
- const path=storeId+'/'+String(recordId)+'.'+ext;
  const cacheKey='mambo_uploaded_product_images_'+storeId;
  let cache={};try{cache=JSON.parse(localStorage.getItem(cacheKey)||'{}')||{};}catch{}
  const fingerprint=String(product.updatedAt||'')+':'+photo.byteLength+':'+mime;
  if(cache[String(recordId)]?.fingerprint===fingerprint&&cache[String(recordId)]?.url)return cache[String(recordId)].url;
+ // Versi foto menjadi bagian nama file agar URL berubah setiap foto diedit.
+ // Ini mencegah browser Kasir memakai gambar lama dari cache URL yang sama.
+ const version=btoa(unescape(encodeURIComponent(fingerprint))).replace(/[^a-z0-9]/gi,'').slice(0,20)||String(Date.now());
+ const path=storeId+'/'+String(recordId)+'_'+version+'.'+ext;
  const body=photo instanceof ArrayBuffer?new Blob([photo],{type:mime}):new Blob([photo.buffer.slice(photo.byteOffset,photo.byteOffset+photo.byteLength)],{type:mime});
  const {error}=await client.storage.from('mambo-product-images').upload(path,body,{upsert:true,contentType:mime,cacheControl:'3600'});
  if(error)throw new Error('Gagal mengunggah foto produk '+(product.sku||recordId)+': '+error.message);
