@@ -1,10 +1,10 @@
-import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords} from './db.js?v=operational-normalization-2';
+import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords,cleanupDemoCatalog} from './db.js?v=demo-cleanup-1';
 import {createUser,login,can,roleName} from './auth.js?v=operational-normalization-2';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-7';
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=catalog-diagnostic-2';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=catalog-diagnostic-2';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -38,6 +38,36 @@ function queueItemDescription(item){
  }
  return parts.join(' · ')||'Detail record tidak tersedia pada antrean ini';
 }
+
+async function cleanupDemoProductsR17(){
+ const pattern=/^BRG-(00[1-9]|01[0-5])$/;
+ const products=(await all('products')).filter(p=>pattern.test(String(p.sku||'')));
+ const productIds=new Set(products.map(p=>String(p.id)));
+ const queue=await all('syncQueue');
+ const productQueue=queue.filter(q=>q.entity==='products'&&productIds.has(String(q.recordId)));
+ const categories=await all('categories');
+ const usedByDemo=new Set(products.map(p=>String(p.categoryId||'')).filter(Boolean));
+ const otherProducts=(await all('products')).filter(p=>!productIds.has(String(p.id)));
+ const categoryQueue=queue.filter(q=>q.entity==='categories');
+ const categoriesToRemove=categories.filter(c=>usedByDemo.has(String(c.id))&&!otherProducts.some(p=>String(p.categoryId||'')===String(c.id))&&categoryQueue.some(q=>String(q.recordId)===String(c.id)));
+ const categoryQueueRows=categoryQueue.filter(q=>categoriesToRemove.some(c=>String(c.id)===String(q.recordId)));
+ if(products.length!==15||productQueue.length!==15||productQueue.some(q=>q.operation!=='upsert')||categoriesToRemove.some(c=>categoryQueueRows.filter(q=>String(q.recordId)===String(c.id)).length!==1)) {
+  const error='Pembersihan otomatis dibatalkan: ditemukan '+products.length+' produk demo, '+productQueue.length+' antrean produk, dan '+categoriesToRemove.length+' kategori yang memenuhi syarat. Jumlah/antrean harus diverifikasi dahulu.';
+  throw Error(error);
+ }
+ const backup={app:'MAMBO KASIR',type:'backup-demo-cleanup',createdAt:new Date().toISOString(),device:JSON.parse(localStorage.getItem('mambo_paired_device')||'null')?.deviceId||'unknown',products,categories:categoriesToRemove,queue:[...productQueue,...categoryQueueRows]};
+ const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='MAMBO-R17-backup-demo-BRG-001-015-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+ if(!confirm('Backup JSON sudah diminta untuk diunduh. Pastikan file backup tersimpan di HP. Lanjutkan menghapus tepat 15 produk demo BRG-001–BRG-015, kategori yang hanya dipakai produk demo, dan antrean terkait? Transaksi, Shift, stok lain, dan produk lain tidak disentuh.'))return {cancelled:true};
+ const result=await cleanupDemoCatalog(products.map(p=>({id:p.id,sku:p.sku})),categoriesToRemove.map(c=>({id:c.id,name:c.name})));
+ const remain=(await all('products')).filter(p=>pattern.test(String(p.sku||''))).length;
+ const qRemain=(await all('syncQueue')).filter(q=>(q.entity==='products'&&pattern.test(String(q.payload?.sku||''))));
+ if(remain||qRemain.length)throw Error('Sebagian data demo masih tersisa: produk '+remain+', antrean '+qRemain.length+'. Jangan ulangi; kirim hasil ini untuk pemeriksaan.');
+ return {...result,remainingProducts:remain,remainingQueue:qRemain.length};
+}
+
 async function inspectLocalSyncQueue(){
  const button=$('#inspectSyncQueueBtn');
  if(button){button.disabled=true;button.textContent='Memeriksa database lokal…';}
@@ -56,9 +86,19 @@ async function inspectLocalSyncQueue(){
   }).join('');
   const detail=queue.slice(0,250).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity||'Tidak diketahui')+'</td><td>'+htmlSafe(item.operation||'upsert')+'</td><td><code>'+htmlSafe(item.recordId||'-')+'</code></td><td>'+htmlSafe(item.createdAt?new Date(item.createdAt).toLocaleString('id-ID'):'-')+'</td><td>'+htmlSafe(queueItemDescription(item))+'</td></tr>').join('');
   const wrap=document.createElement('div');wrap.className='modal-backdrop';
-  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="reconcileCatalogQueue">Cocokkan Katalog dengan Cloud</button><button class="secondary" id="refreshQueueReport">Perbarui</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
+  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="reconcileCatalogQueue">Cocokkan Katalog dengan Cloud</button><button class="secondary" id="cleanupDemoR17">Backup & Bersihkan Produk Demo BRG-001–015</button><button class="secondary" id="refreshQueueReport">Perbarui</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
   document.body.append(wrap);
   wrap.querySelector('#closeQueueReport').onclick=()=>wrap.remove();
+  wrap.querySelector('#cleanupDemoR17').onclick=async()=>{
+   const btn=wrap.querySelector('#cleanupDemoR17');btn.disabled=true;btn.textContent='Memeriksa data demo…';
+   try{
+    const result=await cleanupDemoProductsR17();
+    if(result.cancelled){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';return;}
+    wrap.remove();
+    alert('Pembersihan selesai. Produk dihapus: '+result.productsRemoved+'. Kategori demo yang tidak dipakai produk lain: '+result.categoriesRemoved+'. Antrean terkait dibersihkan: '+result.queueRemoved+'. Sisa produk demo: '+result.remainingProducts+'. Sisa antrean demo: '+result.remainingQueue+'.');
+    inspectLocalSyncQueue();
+   }catch(error){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';alert('Pembersihan dibatalkan atau gagal: '+(error.message||error));}
+  };
   wrap.querySelector('#refreshQueueReport').onclick=()=>{wrap.remove();inspectLocalSyncQueue();};
   wrap.querySelector('#reconcileCatalogQueue').onclick=async()=>{
    const action=wrap.querySelector('#reconcileCatalogQueue');
