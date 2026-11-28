@@ -77,3 +77,13 @@
   .online[data-state="offline"] i{background:#98a2b3}
   .topbar>div:first-child{min-width:0}
 }
+
+/* Kartu rekonsiliasi responsif untuk ponsel */
+.reconcile-list{display:grid;gap:10px;margin-top:14px;max-height:48vh;overflow:auto;padding:2px}
+.reconcile-item{min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg);display:grid;gap:9px}
+.reconcile-item-head{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.reconcile-field{display:grid;gap:3px;min-width:0}
+.reconcile-field small{font-size:11px;color:var(--muted);font-weight:650}
+.reconcile-field span,.reconcile-field code{font-size:12px;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.reconcile-item .success{color:var(--good)}
+.reconcile-item .error{color:var(--bad)}
