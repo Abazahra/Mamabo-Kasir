@@ -4,7 +4,7 @@ import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-dra
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=catalog-reconcile-1';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=catalog-reconcile-2';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=catalog-diagnostic-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -66,9 +66,15 @@ async function inspectLocalSyncQueue(){
    try{
     const result=await reconcileDeviceCatalogQueue();
     wrap.remove();
-    const detailRows=(result.details||[]).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity)+'</td><td><code>'+htmlSafe(item.recordId)+'</code></td><td>'+(item.safe?'<span class="success">Cocok</span>':'<span class="error">Perlu pemeriksaan</span>')+'</td><td>'+htmlSafe(item.reason||'-')+'</td></tr>').join('');
+    const detailRows=(result.details||[]).map(item=>{
+    const local=item.entity==='products'
+     ?['SKU: '+(item.localSku||'-'),'Nama: '+(item.localName||'-'),'Barcode: '+(item.localBarcode||'-'),'Harga: '+(item.localPrice||'-'),'Kategori ID: '+(item.localCategoryId||'-')].join(' | ')
+     :'Nama kategori: '+(item.localName||'-');
+    const candidates=(item.candidates||[]).map(x=>(x.sku?x.sku+' — ':'')+(x.name||'')+' ['+x.id+']').join('; ');
+    return '<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity)+'</td><td><code>'+htmlSafe(item.recordId)+'</code></td><td>'+htmlSafe(local)+'</td><td>'+htmlSafe(candidates||'-')+'</td><td>'+(item.safe?'<span class="success">Cocok</span>':'<span class="error">Perlu pemeriksaan</span>')+'</td><td>'+htmlSafe(item.reason||'-')+'</td></tr>';
+   }).join('');
     const report=document.createElement('div');report.className='modal-backdrop';
-    report.innerHTML='<section class="modal queue-inspector"><h2>Hasil Rekonsiliasi Katalog</h2><p class="muted">Hanya antrean yang terbukti cocok yang dilepas. Data katalog dan transaksi tidak diubah.</p><h3>'+result.removed+' antrean cocok diamankan</h3><p>Masih tertunda: '+result.catalogRemaining+' antrean katalog. Tidak ditemukan: '+result.missing+'. Berbeda: '+result.different+'.</p><div class="table-wrap"><table><thead><tr><th>Jenis</th><th>Record ID</th><th>Status</th><th>Alasan</th></tr></thead><tbody>'+detailRows+'</tbody></table></div><p class="muted">Record yang berbeda atau tidak ditemukan tetap berada di antrean lokal.</p><div class="modal-actions"><button class="secondary" id="refreshAfterReconcile">Perbarui antrean</button><button class="primary" id="closeReconcileReport">Tutup</button></div></section>';
+    report.innerHTML='<section class="modal queue-inspector"><h2>Hasil Rekonsiliasi Katalog</h2><p class="muted">Hanya antrean yang terbukti cocok yang dilepas. Data katalog dan transaksi tidak diubah.</p><h3>'+result.removed+' antrean cocok diamankan</h3><p>Masih tertunda: '+result.catalogRemaining+' antrean katalog. Tidak ditemukan: '+result.missing+'. Berbeda: '+result.different+'.</p><div class="table-wrap"><table><thead><tr><th>Jenis</th><th>Record ID lokal</th><th>Identitas lokal</th><th>Kandidat di Cloud</th><th>Status</th><th>Alasan</th></tr></thead><tbody>'+detailRows+'</tbody></table></div><p class="muted">Record yang berbeda atau tidak ditemukan tetap berada di antrean lokal.</p><div class="modal-actions"><button class="secondary" id="refreshAfterReconcile">Perbarui antrean</button><button class="primary" id="closeReconcileReport">Tutup</button></div></section>';
     document.body.append(report);
     report.querySelector('#closeReconcileReport').onclick=()=>report.remove();
     report.querySelector('#refreshAfterReconcile').onclick=()=>{report.remove();inspectLocalSyncQueue();};
