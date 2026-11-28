@@ -28,6 +28,45 @@ if(window.__mamboOwnerLoginPending){
 }
 
 function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+const QUEUE_LABELS={products:'Produk',categories:'Kategori',customers:'Pelanggan',suppliers:'Supplier',movements:'Kartu Stok',transactions:'Transaksi',shifts:'Shift & Laci Kas',auditLogs:'Audit Log',opnames:'Stock Opname',settings:'Pengaturan',receivables:'Piutang',promos:'Promosi',returns:'Retur',purchases:'Pembelian',payables:'Utang',supplierPayments:'Pembayaran Supplier',operationalExpenses:'Biaya Operasional'};
+function queueItemDescription(item){
+ const p=item.payload||{};
+ const parts=[];
+ for(const key of ['transactionNo','invoiceNo','receiptNo','name','sku','username','date','time','status','total','amount','type','note']){
+  const value=p[key];
+  if(value!==undefined&&value!==null&&String(value).trim()!=='')parts.push(key+': '+String(value).slice(0,90));
+ }
+ return parts.join(' · ')||'Detail record tidak tersedia pada antrean ini';
+}
+async function inspectLocalSyncQueue(){
+ const button=$('#inspectSyncQueueBtn');
+ if(button){button.disabled=true;button.textContent='Memeriksa database lokal…';}
+ try{
+  const queue=(await all('syncQueue')).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const groups=new Map();
+  for(const item of queue){
+   const key=item.entity||'unknown';
+   if(!groups.has(key))groups.set(key,[]);
+   groups.get(key).push(item);
+  }
+  const rows=[...groups.entries()].sort((a,b)=>b[1].length-a[1].length).map(([entity,items])=>{
+   const oldest=items[0]?.createdAt?new Date(items[0].createdAt).toLocaleString('id-ID'):'-';
+   const newest=items[items.length-1]?.createdAt?new Date(items[items.length-1].createdAt).toLocaleString('id-ID'):'-';
+   return '<tr><td>'+htmlSafe(QUEUE_LABELS[entity]||entity)+'</td><td>'+items.length+'</td><td>'+items.filter(x=>x.operation==='delete').length+'</td><td>'+items.filter(x=>x.operation!=='delete').length+'</td><td>'+htmlSafe(oldest)+'</td><td>'+htmlSafe(newest)+'</td></tr>';
+  }).join('');
+  const detail=queue.slice(0,250).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity||'Tidak diketahui')+'</td><td>'+htmlSafe(item.operation||'upsert')+'</td><td><code>'+htmlSafe(item.recordId||'-')+'</code></td><td>'+htmlSafe(item.createdAt?new Date(item.createdAt).toLocaleString('id-ID'):'-')+'</td><td>'+htmlSafe(queueItemDescription(item))+'</td></tr>').join('');
+  const wrap=document.createElement('div');wrap.className='modal-backdrop';
+  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="refreshQueueReport">Perbarui Pemeriksaan</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
+  document.body.append(wrap);
+  wrap.querySelector('#closeQueueReport').onclick=()=>wrap.remove();
+  wrap.querySelector('#refreshQueueReport').onclick=()=>{wrap.remove();inspectLocalSyncQueue();};
+ }catch(error){
+  const box=$('#ownerCloudLoginError');if(box)box.textContent='Pemeriksaan antrean gagal: '+(error.message||error);
+ }finally{
+  if(button){button.disabled=false;button.textContent='Periksa Antrean Lokal (aman)';}
+ }
+}
+document.addEventListener('click',event=>{if(event.target.closest('#inspectSyncQueueBtn'))inspectLocalSyncQueue();});
 window.addEventListener('mambo-device-sync',event=>{
  const el=$('#syncStatus'),detail=event.detail||{};
  if(!el||!devicePaired())return;
