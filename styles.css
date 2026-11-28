@@ -91,3 +91,8 @@
 
 /* Foto produk POS: tampilkan seluruh komposisi tanpa terpotong */
 .pos-product-photo{object-fit:contain!important;object-position:center center!important;background:#eaf5ff!important;padding:3px!important}
+
+
+/* POS: bidang foto mengikuti rasio foto persegi; seluruh gambar tetap utuh tanpa ruang kosong samping */
+.pos-product-photo{display:block;width:100%;height:auto;aspect-ratio:1 / 1;object-fit:contain;object-position:center;background:#eaf5ff;border-radius:8px;padding:0!important}
+.pos-product-photo-placeholder{width:100%;height:auto;aspect-ratio:1 / 1;display:grid;place-items:center;border-radius:8px;background:var(--line);color:var(--muted);font-size:11px;text-align:center}
