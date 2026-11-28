@@ -3,8 +3,8 @@ import {createUser,login,can,roleName} from './auth.js?v=operational-normalizati
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-7';
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
-import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=android-login-compat-4';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,updateDeviceStaffProfile} from './device-pairing.js?v=android-login-compat-4';
+import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=cashier-sync-status-1';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,updateDeviceStaffProfile} from './device-pairing.js?v=cashier-sync-status-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -28,6 +28,15 @@ if(window.__mamboOwnerLoginPending){
 }
 
 function toast(s){const t=$('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+window.addEventListener('mambo-device-sync',event=>{
+ const el=$('#syncStatus'),detail=event.detail||{};
+ if(!el||!devicePaired())return;
+ el.dataset.state=detail.ok?'online':'offline';
+ el.textContent=detail.ok?'Online':'Offline';
+ el.title=detail.ok
+  ?'Sinkronisasi perangkat kasir berhasil. Data terbaru diterima dari server.'
+  :'Sinkronisasi perangkat kasir gagal: '+(detail.error||'Penyebab belum diketahui.');
+});
 function eanValid(v){if(!v)return true;if(!/^\d{13}$/.test(v))return false;let sum=0;for(let i=0;i<12;i++)sum+=Number(v[i])*(i%2?3:1);return (10-sum%10)%10===Number(v[12]);}
 async function refresh(){[products,categories,customers,suppliers,movements]=await Promise.all(['products','categories','customers','suppliers','movements'].map(all));}
 async function seed(){if((await all('users')).length){toast('Data sudah tersedia.');return;}await clearAndSeed();const cats=['Sembako','Makanan','Minuman','Perawatan','Rumah Tangga'].map(name=>({id:uid(),name}));await bulkPut('categories',cats);await bulkPut('customers',[{id:uid(),name:'Pelanggan Umum',phone:'-'},{id:uid(),name:'Bu Siti',phone:'081234567890'},{id:uid(),name:'Pak Andi',phone:'081298765432'}]);await bulkPut('suppliers',[{id:uid(),name:'CV Sumber Makmur',phone:'081300001111'},{id:uid(),name:'PT Niaga Jaya',phone:'081300002222'}]);await createUser('Pemilik Toko','owner','123456');await createUser('Supervisor','supervisor','2222');await createUser('Kasir 1','cashier','1111');await refresh();toast('Data demo berhasil dibuat.');}
