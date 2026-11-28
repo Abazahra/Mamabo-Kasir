@@ -42,7 +42,16 @@ function stableCatalogValue(value){
  }
  return value;
 }
-function sameCatalogRecord(a,b){return JSON.stringify(stableCatalogValue(a))===JSON.stringify(stableCatalogValue(b));}
+const CATALOG_LOCAL_ONLY=new Set(['photo','photoType','stock','updatedAt','createdAt','lastSyncAt']);
+function sameCatalogRecord(entity,local,remote){
+ if(!local||!remote||String(local.id??'')!==String(remote.id??''))return {same:false,reason:'ID record tidak cocok'};
+ const keys=Object.keys(remote).filter(key=>!CATALOG_LOCAL_ONLY.has(key)&&key!=='photoUrl'&&Object.prototype.hasOwnProperty.call(local,key));
+ const required=entity==='products'?['sku','name']:['name'];
+ if(!required.every(key=>keys.includes(key)))return {same:false,reason:'Field identitas utama tidak lengkap untuk verifikasi'};
+ const mismatches=keys.filter(key=>JSON.stringify(stableCatalogValue(local[key]))!==JSON.stringify(stableCatalogValue(remote[key])));
+ if(mismatches.length)return {same:false,reason:'Field berbeda: '+mismatches.slice(0,5).join(', ')};
+ return {same:true,reason:'Field katalog yang dikelola Cloud cocok; atribut lokal seperti foto/stok diabaikan'};
+}
 // Rekonsiliasi konservatif: antrean hanya dilepas jika server membuktikan
 // record upsert identik, atau record delete memang sudah tidak ada di katalog pusat.
 export async function reconcileDeviceCatalogQueue(){
@@ -64,10 +73,10 @@ export async function reconcileDeviceCatalogQueue(){
    reason=safe?'Record sudah tidak ada di katalog Cloud':'Record masih ada di Cloud; antrean hapus dipertahankan';
   }else if(!server){
    report.missing++;reason='Record tidak ditemukan di katalog Cloud; antrean dipertahankan';
-  }else if(sameCatalogRecord(item.payload||{},server)){
-   safe=true;reason='Isi lokal identik dengan katalog Cloud';
+  }else if(sameCatalogRecord(item.entity,item.payload||{},server).same){
+   safe=true;reason=sameCatalogRecord(item.entity,item.payload||{},server).reason;
   }else{
-   report.different++;reason='Isi lokal berbeda dari Cloud; antrean dipertahankan';
+   report.different++;reason=sameCatalogRecord(item.entity,item.payload||{},server).reason+'; antrean dipertahankan';
   }
   if(safe){
    report.matched++;
