@@ -5,7 +5,7 @@ const KEY='mambo_paired_device';
 let client=null,clientPromise=null;
 async function ensureClient(){
  if(client)return client;
- if(!clientPromise)clientPromise=import('https://esm.sh/@supabase/supabase-js@2').then(({createClient})=>{
+ if(!clientPromise)clientPromise=import('https://esm.sh/@supabase/supabase-js@2.49.4?target=es2020').then(({createClient})=>{
   client=createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   return client;
  }).catch(error=>{clientPromise=null;throw Error('Pustaka koneksi server gagal dimuat. Periksa internet lalu muat ulang halaman. Detail: '+(error.message||error));});
