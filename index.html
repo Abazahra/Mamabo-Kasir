@@ -14,7 +14,7 @@
     button.disabled = true;
     button.textContent = 'Menyiapkan login Owner…';
     if (message) message.textContent = 'Tombol terdeteksi. Memuat layanan login…';
-    import('./js/owner-login-bridge.js?v=owner-login-queued-1')
+    import('./js/owner-login-bridge.js?v=owner-login-queued-2')
       .then(function (module) { return module.loginOwner(button); })
       .catch(function (error) {
         console.error('Owner login loader:', error);
@@ -26,4 +26,4 @@
   }, true);
 })();
 </script>
-<script type="module" src="js/app.js?v=browser-independent-login-1"></script><script type="module" src="js/device-pairing.js?v=browser-independent-login-1"></script><script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(function(err){console.warn("Pendaftaran aplikasi:",err);});});}</script></body></html>
+<script type="module" src="js/app.js?v=browser-independent-login-2"></script><script type="module" src="js/device-pairing.js?v=browser-independent-login-1"></script><script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(function(err){console.warn("Pendaftaran aplikasi:",err);});});}</script></body></html>
