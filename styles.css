@@ -65,3 +65,15 @@
   .main{margin-left:0!important;width:100%!important}
   #menuToggle{display:inline-block!important}
 }
+
+
+/* Status sinkronisasi tetap terlihat pada layar ponsel */
+@media(max-width:680px){
+  .top-actions{gap:7px;flex-shrink:0}
+  .online{display:inline-flex;align-items:center;white-space:nowrap;font-size:10px;line-height:1}
+  .online i{width:8px;height:8px;flex:0 0 8px;margin-right:4px;background:#98a2b3}
+  .online[data-state="online"] i{background:#15966b}
+  .online[data-state="syncing"] i{background:#e6a23c;box-shadow:0 0 0 3px #e6a23c22}
+  .online[data-state="offline"] i{background:#98a2b3}
+  .topbar>div:first-child{min-width:0}
+}
