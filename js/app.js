@@ -4,7 +4,7 @@ import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-dra
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=cashier-sync-status-1';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,updateDeviceStaffProfile} from './device-pairing.js?v=queue-inspector-1';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=queue-inspector-1';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -56,10 +56,24 @@ async function inspectLocalSyncQueue(){
   }).join('');
   const detail=queue.slice(0,250).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity||'Tidak diketahui')+'</td><td>'+htmlSafe(item.operation||'upsert')+'</td><td><code>'+htmlSafe(item.recordId||'-')+'</code></td><td>'+htmlSafe(item.createdAt?new Date(item.createdAt).toLocaleString('id-ID'):'-')+'</td><td>'+htmlSafe(queueItemDescription(item))+'</td></tr>').join('');
   const wrap=document.createElement('div');wrap.className='modal-backdrop';
-  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="refreshQueueReport">Perbarui Pemeriksaan</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
+  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="reconcileCatalogQueue">Cocokkan Katalog dengan Cloud</button><button class="secondary" id="refreshQueueReport">Perbarui</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
   document.body.append(wrap);
   wrap.querySelector('#closeQueueReport').onclick=()=>wrap.remove();
   wrap.querySelector('#refreshQueueReport').onclick=()=>{wrap.remove();inspectLocalSyncQueue();};
+  wrap.querySelector('#reconcileCatalogQueue').onclick=async()=>{
+   const action=wrap.querySelector('#reconcileCatalogQueue');
+   action.disabled=true;action.textContent='Membandingkan dengan Cloud…';
+   try{
+    const result=await reconcileDeviceCatalogQueue();
+    wrap.remove();
+    toast('Rekonsiliasi selesai: '+result.removed+' antrean identik diamankan; '+result.catalogRemaining+' antrean katalog masih perlu pemeriksaan.');
+    inspectLocalSyncQueue();
+   }catch(error){
+    action.disabled=false;action.textContent='Cocokkan Katalog dengan Cloud';
+    const note=document.createElement('p');note.className='error';note.textContent='Rekonsiliasi dibatalkan tanpa mengubah antrean: '+(error.message||error);
+    action.parentElement.before(note);
+   }
+  };
  }catch(error){
   const box=$('#ownerCloudLoginError');if(box)box.textContent='Pemeriksaan antrean gagal: '+(error.message||error);
  }finally{
