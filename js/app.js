@@ -4,7 +4,7 @@ import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-dra
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=catalog-diagnostic-2';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-3';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-4';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
@@ -44,25 +44,33 @@ async function cleanupDemoProductsR17(){
  const localProducts=(await all('products')).filter(p=>pattern.test(String(p.sku||'')));
  const queue=await all('syncQueue');
  const productQueue=queue.filter(q=>q.entity==='products'&&q.operation!=='delete'&&pattern.test(String(q.payload?.sku||'')));
- const localIds=new Set(localProducts.map(p=>String(p.id)));
- const productsToRemove=localProducts.map(p=>({id:p.id,sku:p.sku}));
+ const categoryNames=[
+  {id:'3fc4feb9-2dc8-4662-9050-c1b7d91a5f5f',name:'Minuman'},
+  {id:'0dd83718-c879-421d-9b0e-586b76a6308e',name:'Sembako'},
+  {id:'55df6731-bcb9-4f70-a513-e756654bd2fb',name:'Makanan'},
+  {id:'e9a615db-cc6d-4228-954e-2ba3f8ed4b48',name:'Rumah Tangga'},
+  {id:'5d9eadd5-e098-4d99-83f6-68a247b97c8e',name:'Perawatan'}
+ ];
  const categories=await all('categories');
- const categoryQueue=queue.filter(q=>q.entity==='categories'&&q.operation!=='delete');
- const referencedCategoryIds=new Set(localProducts.map(p=>String(p.categoryId||'')).filter(Boolean));
- const categoriesToRemove=categories.filter(c=>referencedCategoryIds.has(String(c.id))&&
-  !(awaitNever()).has(String(c.id)));
- function awaitNever(){return new Set();}
- const backup={app:'MAMBO KASIR',type:'backup-demo-cleanup',createdAt:new Date().toISOString(),device:JSON.parse(localStorage.getItem('mambo_paired_device')||'null')?.deviceId||'unknown',products:localProducts,productQueue,categories:[],categoryQueue:[]};
+ const categoryQueue=queue.filter(q=>q.entity==='categories'&&categoryNames.some(c=>String(q.recordId)===c.id));
+ const categoryRecords=categories.filter(c=>categoryNames.some(x=>x.id===String(c.id)));
+ if(localProducts.length)throw Error('Masih ada '+localProducts.length+' produk BRG demo. Bersihkan produk dahulu.');
+ if(productQueue.length)throw Error('Masih ada '+productQueue.length+' antrean produk demo. Bersihkan produk dahulu.');
+ if(categoryQueue.length!==5||categoryNames.some(c=>categoryQueue.filter(q=>String(q.recordId)===c.id&&q.operation!=='delete'&&String(q.payload?.name||'')===c.name).length!==1))
+  throw Error('Antrean kategori tidak sama persis dengan lima kategori demo yang dikenal. Tidak ada data dihapus.');
+ const productsUsingCategories=(await all('products')).filter(p=>categoryNames.some(c=>String(p.categoryId||'')===c.id));
+ if(productsUsingCategories.length)throw Error('Ada '+productsUsingCategories.length+' produk lokal yang masih menggunakan kategori tersebut. Kategori dipertahankan.');
+ const backup={app:'MAMBO KASIR',type:'backup-demo-category-cleanup',createdAt:new Date().toISOString(),device:JSON.parse(localStorage.getItem('mambo_paired_device')||'null')?.deviceId||'unknown',products:localProducts,productQueue,categories:categoryRecords,categoryQueue};
  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');
- a.href=url;a.download='MAMBO-R17-backup-demo-BRG-001-015-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
+ a.href=url;a.download='MAMBO-R17-backup-5-kategori-demo-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
- if(!confirm('Backup JSON sudah diminta untuk diunduh. Lanjutkan menghapus produk lokal dengan SKU BRG-001–BRG-015 dan seluruh antrean produk yang payload-nya memiliki SKU tersebut? Kategori tidak dihapus pada tahap ini. Transaksi, Shift, stok lain, dan produk lain tidak disentuh.'))return {cancelled:true};
- const result=await cleanupDemoCatalog(productsToRemove,[]);
- const remainingProducts=(await all('products')).filter(p=>pattern.test(String(p.sku||''))).length;
- const remainingQueue=(await all('syncQueue')).filter(q=>q.entity==='products'&&pattern.test(String(q.payload?.sku||''))).length;
- if(remainingProducts||remainingQueue)throw Error('Masih tersisa produk demo '+remainingProducts+' dan antrean produk demo '+remainingQueue+'. Jangan ulangi; kirim hasil pemeriksaan.');
- return {...result,remainingProducts,remainingQueue,categoryQueueReview:categoryQueue.length};
+ if(!confirm('Backup lima kategori dan antreannya sudah diminta untuk diunduh. Lanjutkan menghapus hanya lima antrean kategori demo berikut: Minuman, Sembako, Makanan, Rumah Tangga, Perawatan? Record kategori lokal dengan ID yang sama juga dihapus hanya jika tidak digunakan produk lain. Cloud, transaksi, Shift, dan kategori lain tidak disentuh.'))return {cancelled:true};
+ const result=await cleanupDemoCatalog([],categoryNames);
+ const remaining=(await all('syncQueue')).filter(q=>q.entity==='categories'&&categoryNames.some(c=>String(q.recordId)===c.id));
+ const remainCategories=(await all('categories')).filter(c=>categoryNames.some(x=>x.id===String(c.id)));
+ if(remaining.length||remainCategories.length)throw Error('Masih tersisa antrean kategori '+remaining.length+' dan record kategori lokal '+remainCategories.length+'. Jangan ulangi; kirim hasil pemeriksaan.');
+ return {...result,remainingCategoryQueue:remaining.length,remainingCategories:remainCategories.length};
 }
 
 async function inspectLocalSyncQueue(){
@@ -83,7 +91,7 @@ async function inspectLocalSyncQueue(){
   }).join('');
   const detail=queue.slice(0,250).map(item=>'<tr><td>'+htmlSafe(QUEUE_LABELS[item.entity]||item.entity||'Tidak diketahui')+'</td><td>'+htmlSafe(item.operation||'upsert')+'</td><td><code>'+htmlSafe(item.recordId||'-')+'</code></td><td>'+htmlSafe(item.createdAt?new Date(item.createdAt).toLocaleString('id-ID'):'-')+'</td><td>'+htmlSafe(queueItemDescription(item))+'</td></tr>').join('');
   const wrap=document.createElement('div');wrap.className='modal-backdrop';
-  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="reconcileCatalogQueue">Cocokkan Katalog dengan Cloud</button><button class="secondary" id="cleanupDemoR17">Backup & Bersihkan Produk Demo BRG-001–015</button><button class="secondary" id="refreshQueueReport">Perbarui</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
+  wrap.innerHTML='<section class="modal queue-inspector"><h2>Pemeriksaan Antrean Lokal</h2><p class="muted">Pemeriksaan hanya membaca IndexedDB pada perangkat ini. Tidak ada record yang dikirim, diubah, atau dihapus.</p><h3>Total antrean: '+queue.length+' perubahan</h3>'+(queue.length?'<div class="table-wrap"><table><thead><tr><th>Jenis Data</th><th>Total</th><th>Hapus</th><th>Simpan/Ubah</th><th>Tertua</th><th>Terbaru</th></tr></thead><tbody>'+rows+'</tbody></table></div><h3 style="margin-top:20px">Rincian antrean (maksimal 250 item tertua)</h3><div class="table-wrap"><table><thead><tr><th>Data</th><th>Aksi</th><th>Record ID</th><th>Waktu</th><th>Ringkasan</th></tr></thead><tbody>'+detail+'</tbody></table></div>'+(queue.length>250?'<p class="muted">Masih ada '+(queue.length-250)+' item lain; belum ditampilkan pada rincian.</p>':''):'<p class="empty">Tidak ada antrean lokal. Tidak ada perubahan tertunda.</p>')+'<p class="muted">Catatan: antrean Shift ditampilkan apa adanya. Jangan menghapus antrean secara manual sebelum isi dan statusnya diverifikasi.</p><div class="modal-actions"><button class="secondary" id="reconcileCatalogQueue">Cocokkan Katalog dengan Cloud</button><button class="secondary" id="cleanupDemoR17">Backup & Bersihkan 5 Kategori Demo</button><button class="secondary" id="refreshQueueReport">Perbarui</button><button class="primary" id="closeQueueReport">Tutup</button></div></section>';
   document.body.append(wrap);
   wrap.querySelector('#closeQueueReport').onclick=()=>wrap.remove();
   wrap.querySelector('#cleanupDemoR17').onclick=async()=>{
@@ -92,7 +100,7 @@ async function inspectLocalSyncQueue(){
     const result=await cleanupDemoProductsR17();
     if(result.cancelled){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';return;}
     wrap.remove();
-    alert('Pembersihan selesai. Produk dihapus: '+result.productsRemoved+'. Kategori demo yang tidak dipakai produk lain: '+result.categoriesRemoved+'. Antrean terkait dibersihkan: '+result.queueRemoved+'. Sisa produk demo: '+result.remainingProducts+'. Sisa antrean demo: '+result.remainingQueue+'.');
+    alert('Pembersihan selesai. Kategori lokal dihapus: '+result.categoriesRemoved+'. Antrean kategori dibersihkan: '+result.categoryQueueRemoved+'. Sisa kategori lokal: '+result.remainingCategories+'. Sisa antrean kategori: '+result.remainingCategoryQueue+'.');
     inspectLocalSyncQueue();
    }catch(error){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';alert('Pembersihan dibatalkan atau gagal: '+(error.message||error));}
   };
