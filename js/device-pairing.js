@@ -222,9 +222,14 @@ async function migrateLegacyCashierLocalData(){
 let deviceSyncBusy=false,deviceSyncTimer=null;
 async function deviceRpc(name,args){await ensureClient();const {data,error}=await client.rpc(name,args);if(error)throw error;return data;}
 export async function syncDeviceData(){
- if(deviceSyncBusy||!navigator.onLine)return {skipped:true};
+ if(deviceSyncBusy)return {skipped:true};
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
  if(!saved?.token)return {skipped:true};
+ if(!navigator.onLine){
+  const error='Perangkat tidak memiliki koneksi internet.';
+  window.dispatchEvent(new CustomEvent('mambo-device-sync',{detail:{ok:false,error}}));
+  return {skipped:true,error};
+ }
  deviceSyncBusy=true;
  try{
   // Alihkan data lokal Kasir-1 sebelum push awal maupun antrean sinkronisasi.
@@ -243,10 +248,14 @@ export async function syncDeviceData(){
   // Kirim perubahan terbaru dari antrean lokal.
   const queue=(await all('syncQueue')).sort((a,b)=>a.createdAt-b.createdAt);
   for(let i=0;i<queue.length;i+=300){
-   const batch=queue.slice(i,i+300).filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.entity!=='shifts')
-    .map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{}),deleted:x.operation==='delete'}));
-   if(batch.length)await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
-   for(const item of queue.slice(i,i+300))if(SYNC_ENTITIES.includes(item.entity))await remove('syncQueue',item.id);
+   const chunk=queue.slice(i,i+300);
+   const batchItems=chunk.filter(x=>SYNC_ENTITIES.includes(x.entity)&&x.entity!=='shifts');
+   const batch=batchItems.map(x=>({entity:x.entity,record_id:String(x.recordId),payload:normalizeLegacyCashier(x.entity,x.payload||{}),deleted:x.operation==='delete'}));
+   if(batch.length){
+    await deviceRpc('mambo_device_sync_push',{p_device_token:saved.token,p_records:batch,p_insert_only:false});
+    // Hanya hapus antrean yang benar-benar berhasil dikirim. Antrean shift tetap utuh.
+    for(const item of batchItems)await remove('syncQueue',item.id);
+   }
   }
   const rows=await deviceRpc('mambo_device_sync_pull',{p_device_token:saved.token});
   const result=await applyCloudRows(Array.isArray(rows)?rows:[]);
