@@ -108,7 +108,7 @@ async function findProductSkuConflicts(){
 }
 async function uploadProductPhoto(recordId,product){
  const photo=product?.photo;
- if(typeof photo==='string'&&/^https?:\\/\\//i.test(photo))return photo;
+ if(typeof photo==='string'&&/^https?:\/\//i.test(photo))return photo;
  if(!(photo instanceof ArrayBuffer)&&!ArrayBuffer.isView(photo))return product?.photoUrl||null;
  if(!photo.byteLength)return product?.photoUrl||null;
  const mime=String(product.photoType||'image/jpeg');
