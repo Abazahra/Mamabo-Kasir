@@ -1,4 +1,4 @@
-import {all,put,atomic,uid} from './db.js?v=operational-normalization-2';
+import {all,put,atomic,uid} from './db.js?v=photo-propagation-1';
 import {sharedDrawerSnapshot as deviceDrawerSnapshot,appendSharedDrawerEvent,resolveSharedDrawerEvent,flushPendingSharedDrawerEvents,supervisorSharedDrawerControl,syncSharedDrawerSourceRecord} from './device-pairing.js?v=shared-drawer-9';
 import {cloudStatus,sharedDrawerSnapshot as ownerDrawerSnapshot,openSharedDrawer,closeSharedDrawer,appendOwnerDrawerEvent,resolveOwnerDrawerEvent,flushPendingOwnerDrawerEvents,reviewSharedDrawerPendingEvents,syncOwnerSharedDrawerSourceRecord} from './cloud-sync.js?v=photo-version-3';
 const $=s=>document.querySelector(s), rp=n=>'Rp '+Math.round(n||0).toLocaleString('id-ID'), now=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'});
