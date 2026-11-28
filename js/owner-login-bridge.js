@@ -1,6 +1,6 @@
-import { all } from './db.js?v=operational-normalization-2';
+import { all } from './db.js?v=demo-cleanup-2';
 import { createUser } from './auth.js?v=operational-normalization-2';
-import { cloudSignInOwner } from './cloud-sync.js?v=catalog-reconcile-1';
+import { cloudSignInOwner } from './cloud-sync.js?v=catalog-diagnostic-2';
 
 export async function loginOwner(button) {
   const email = document.querySelector('#ownerCloudEmail')?.value?.trim() || '';
@@ -30,16 +30,18 @@ export async function loginOwner(button) {
     const successDetail = { owner, pulled: result.pulled || 0, applied: result.applied || 0 };
     window.__mamboOwnerLoginPending = successDetail;
     // Gunakan callback langsung bila modul utama sudah siap; event tetap dipertahankan untuk kompatibilitas.
-    if (typeof window.__mamboAcceptOwnerLogin === 'function') {
-      window.__mamboAcceptOwnerLogin(successDetail);
+    const accept = window.__mamboAcceptOwnerLogin;
+    if (typeof accept === 'function') {
+      // Satu jalur saja: hindari pemanggilan ganda melalui callback dan event.
+      accept(successDetail);
       delete window.__mamboOwnerLoginPending;
+      if (errorBox) errorBox.textContent = '';
+    } else {
+      // Modul utama belum siap. Simpan sesi lalu muat ulang agar boot memulihkan sesi Owner.
+      window.dispatchEvent(new CustomEvent('mambo-owner-login-success', { detail: successDetail }));
+      if (errorBox) errorBox.textContent = 'Login berhasil, tetapi dashboard belum siap. Memuat ulang aplikasi…';
+      setTimeout(() => window.location.reload(), 900);
     }
-    window.dispatchEvent(new CustomEvent('mambo-owner-login-success', { detail: successDetail }));
-    if (document.getElementById('app')?.classList.contains('hidden')) {
-      // Jika modul utama belum terpasang, muat ulang agar sesi Owner tersimpan dipulihkan saat boot.
-      if (errorBox) errorBox.textContent = 'Login berhasil. Memuat ulang dashboard Owner…';
-      setTimeout(() => { if (document.getElementById('app')?.classList.contains('hidden')) window.location.reload(); }, 700);
-    } else if (errorBox) errorBox.textContent = 'Login berhasil. Dashboard Owner sedang dibuka…';
     button.textContent = 'Berhasil masuk';
   } catch (error) {
     console.error('Owner login:', error);
