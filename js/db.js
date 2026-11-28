@@ -29,8 +29,20 @@ export async function applyCloudRows(rows){
    for(const row of rows||[]){
     if(!valid.has(row.entity)||!row.record_id)continue;
     const key=row.entity+'|'+String(row.record_id);
-    if(pending.has(key)){skipped++;continue;}
     const target=tx.objectStore(row.entity);
+    if(pending.has(key)){
+     // Perubahan lokal produk (mis. stok) tetap menang, tetapi URL foto dari Cloud
+     // tetap diperbarui agar perangkat Kasir menerima gambar terbaru.
+     if(row.entity==='products'&&!row.deleted&&row.payload&&Object.prototype.hasOwnProperty.call(row.payload,'photoUrl')){
+      const currentReq=target.get(row.record_id);
+      currentReq.onsuccess=()=>{
+       const current=currentReq.result;
+       if(current){current.photoUrl=row.payload.photoUrl||null;target.put(current);applied++;}
+       else skipped++;
+      };
+     }else skipped++;
+     continue;
+    }
     if(row.deleted){target.delete(row.record_id);applied++;continue;}
     const incoming=row.payload&&typeof row.payload==='object'?{...row.payload}:null;
     if(!incoming||String(incoming.id??'')!==String(row.record_id))continue;
