@@ -32,6 +32,56 @@ export async function syncDeviceCatalog(){
  return result;
 }
 
+
+function stableCatalogValue(value){
+ if(Array.isArray(value))return value.map(stableCatalogValue);
+ if(value&&typeof value==='object'){
+  const out={};
+  for(const key of Object.keys(value).sort())if(value[key]!==undefined)out[key]=stableCatalogValue(value[key]);
+  return out;
+ }
+ return value;
+}
+function sameCatalogRecord(a,b){return JSON.stringify(stableCatalogValue(a))===JSON.stringify(stableCatalogValue(b));}
+// Rekonsiliasi konservatif: antrean hanya dilepas jika server membuktikan
+// record upsert identik, atau record delete memang sudah tidak ada di katalog pusat.
+export async function reconcileDeviceCatalogQueue(){
+ await ensureClient();
+ const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+ if(!saved?.token)throw Error('Perangkat ini belum memiliki token pemasangan. Tidak ada antrean yang diubah.');
+ if(!navigator.onLine)throw Error('Internet tidak tersedia. Tidak ada antrean yang diubah.');
+ const {data,error}=await client.rpc('mambo_device_catalog_snapshot',{p_device_token:saved.token});
+ if(error)throw error;
+ if(!data||data.store_id!==saved.storeId)throw Error('Identitas toko dari server tidak cocok. Tidak ada antrean yang diubah.');
+ const queue=(await all('syncQueue')).filter(x=>['products','categories'].includes(x.entity));
+ const remote={products:new Map((data.products||[]).map(x=>[String(x.id),x])),categories:new Map((data.categories||[]).map(x=>[String(x.id),x]))};
+ const report={checked:queue.length,matched:0,missing:0,different:0,removed:0,details:[]};
+ for(const item of queue){
+  const server=remote[item.entity].get(String(item.recordId));
+  let safe=false,reason='';
+  if(item.operation==='delete'){
+   safe=!server;
+   reason=safe?'Record sudah tidak ada di katalog Cloud':'Record masih ada di Cloud; antrean hapus dipertahankan';
+  }else if(!server){
+   report.missing++;reason='Record tidak ditemukan di katalog Cloud; antrean dipertahankan';
+  }else if(sameCatalogRecord(item.payload||{},server)){
+   safe=true;reason='Isi lokal identik dengan katalog Cloud';
+  }else{
+   report.different++;reason='Isi lokal berbeda dari Cloud; antrean dipertahankan';
+  }
+  if(safe){
+   report.matched++;
+   await remove('syncQueue',item.id);
+   report.removed++;
+  }
+  report.details.push({entity:item.entity,recordId:String(item.recordId),safe,reason});
+ }
+ report.remaining=(await all('syncQueue')).length;
+ report.catalogRemaining=(await all('syncQueue')).filter(x=>['products','categories'].includes(x.entity)).length;
+ window.dispatchEvent(new CustomEvent('mambo-sync-update',{detail:{pending:report.remaining}}));
+ return report;
+}
+
 export async function listDeviceStaff(){
  await ensureClient();
  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
