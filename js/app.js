@@ -98,11 +98,11 @@ async function inspectLocalSyncQueue(){
    const btn=wrap.querySelector('#cleanupDemoR17');btn.disabled=true;btn.textContent='Memeriksa data demo…';
    try{
     const result=await cleanupDemoProductsR17();
-    if(result.cancelled){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';return;}
+    if(result.cancelled){btn.disabled=false;btn.textContent='Backup & Bersihkan 5 Kategori Demo';return;}
     wrap.remove();
     alert('Pembersihan selesai. Kategori lokal dihapus: '+result.categoriesRemoved+'. Antrean kategori dibersihkan: '+result.categoryQueueRemoved+'. Sisa kategori lokal: '+result.remainingCategories+'. Sisa antrean kategori: '+result.remainingCategoryQueue+'.');
     inspectLocalSyncQueue();
-   }catch(error){btn.disabled=false;btn.textContent='Backup & Bersihkan Produk Demo BRG-001–015';alert('Pembersihan dibatalkan atau gagal: '+(error.message||error));}
+   }catch(error){btn.disabled=false;btn.textContent='Backup & Bersihkan 5 Kategori Demo';alert('Pembersihan dibatalkan atau gagal: '+(error.message||error));}
   };
   wrap.querySelector('#refreshQueueReport').onclick=()=>{wrap.remove();inspectLocalSyncQueue();};
   wrap.querySelector('#reconcileCatalogQueue').onclick=async()=>{
