@@ -1,10 +1,10 @@
-import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords,cleanupDemoCatalog} from './db.js?v=demo-cleanup-1';
+import {all,put,remove,bulkPut,clearAndSeed,uid,discardVerifiedDemoRecords,cleanupDemoCatalog} from './db.js?v=demo-cleanup-2';
 import {createUser,login,can,roleName} from './auth.js?v=operational-normalization-2';
 import {mountPOS,mountShift,mountTransactionHistory} from './pos.js?v=shared-drawer-7';
 import {mountPurchasing} from './purchasing.js?v=operational-normalization-2';
 import {mountDashboard,mountReports,mountAudit,mountSettings,audit} from './stage4.js?v=shared-drawer-6';
 import {startCloudSync,cloudStatus,syncNow,cloudSignInOwner,cloudRegisterOwner,cloudUpdateOwnerProfile} from './cloud-sync.js?v=catalog-diagnostic-2';
-import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-2';
+import {devicePaired,syncDeviceCatalog,loginDeviceStaffAuto,restoreDeviceStaffSession,logoutDeviceStaff,startDeviceDataSync,reconcileDeviceCatalogQueue,updateDeviceStaffProfile} from './device-pairing.js?v=demo-cleanup-3';
 import {mountStaffAccounts} from './staff-accounts.js?v=owner-job-invites-1';
 import {mountExpenses} from './expenses.js?v=shared-drawer-6';
 const $=s=>document.querySelector(s), htmlSafe=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])), money=n=>'Rp '+Number(n||0).toLocaleString('id-ID'), date=()=>new Date().toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}), fmt=n=>Number(n||0).toLocaleString('id-ID');
