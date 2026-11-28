@@ -106,6 +106,14 @@ async function findProductSkuConflicts(){
  for(const product of localProducts){const sku=String(product.sku||'').trim().toLowerCase();if(!sku)continue;const remote=remoteBySku.get(sku);if(remote&&String(remote.record_id)!==String(product.id))conflicts.push({sku:product.sku,localName:product.name||'(tanpa nama)',remoteName:remote.payload?.name||'(tanpa nama)',localId:product.id,remoteId:remote.record_id});}
  return conflicts;
 }
+async function productPhotoFingerprint(product){
+ const photo=product?.photo;
+ const bytes=photo instanceof ArrayBuffer?new Uint8Array(photo):ArrayBuffer.isView(photo)?new Uint8Array(photo.buffer,photo.byteOffset,photo.byteLength):null;
+ if(!bytes?.byteLength)return '';
+ const digest=await crypto.subtle.digest('SHA-256',bytes);
+ const hash=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
+ return hash+':'+String(product.photoType||'image/jpeg');
+}
 async function uploadProductPhoto(recordId,product){
  const photo=product?.photo;
  if(typeof photo==='string'&&/^https?:\/\//i.test(photo))return photo;
@@ -115,11 +123,11 @@ async function uploadProductPhoto(recordId,product){
  const ext=mime.split('/')[1]?.replace(/[^a-z0-9]/gi,'')||'jpg';
  const cacheKey='mambo_uploaded_product_images_'+storeId;
  let cache={};try{cache=JSON.parse(localStorage.getItem(cacheKey)||'{}')||{};}catch{}
- const fingerprint=String(product.updatedAt||'')+':'+photo.byteLength+':'+mime;
+ const fingerprint=await productPhotoFingerprint(product);
  if(cache[String(recordId)]?.fingerprint===fingerprint&&cache[String(recordId)]?.url)return cache[String(recordId)].url;
  // Versi foto menjadi bagian nama file agar URL berubah setiap foto diedit.
  // Ini mencegah browser Kasir memakai gambar lama dari cache URL yang sama.
- const version=btoa(unescape(encodeURIComponent(fingerprint))).replace(/[^a-z0-9]/gi,'').slice(0,20)||String(Date.now());
+ const version=fingerprint.split(':')[0].slice(0,24)||String(Date.now());
  const path=storeId+'/'+String(recordId)+'_'+version+'.'+ext;
  const body=photo instanceof ArrayBuffer?new Blob([photo],{type:mime}):new Blob([photo.buffer.slice(photo.byteOffset,photo.byteOffset+photo.byteLength)],{type:mime});
  const {error}=await client.storage.from('mambo-product-images').upload(path,body,{upsert:true,contentType:mime,cacheControl:'3600'});
@@ -143,7 +151,7 @@ async function syncLocalProductPhotos(){
  for(const product of products){
   const photo=product.photo;
   if(!(photo instanceof ArrayBuffer)&&!ArrayBuffer.isView(photo))continue;
-  const fingerprint=String(product.updatedAt||'')+':'+photo.byteLength+':'+String(product.photoType||'image/jpeg');
+  const fingerprint=await productPhotoFingerprint(product);
   if(cache[String(product.id)]?.fingerprint===fingerprint&&cache[String(product.id)]?.synced===true)continue;
   const photoUrl=await uploadProductPhoto(product.id,product);
   if(!photoUrl)continue;
