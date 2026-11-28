@@ -26,4 +26,12 @@
   }, true);
 })();
 </script>
-<script type="module" src="js/app.js?v=owner-login-transition-fix-3"></script><script type="module" src="js/device-pairing.js?v=demo-cleanup-4"></script><script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(function(err){console.warn("Pendaftaran aplikasi:",err);});});}</script></body></html>
+<script type="module">
+import('./js/app.js?v=boot-diagnostic-4').catch(function(error){
+  console.error('MAMBO app bootstrap failed:',error);
+  var box=document.getElementById('loginError');
+  if(box) box.textContent='Aplikasi gagal dimuat: '+(error&&error.message?error.message:String(error))+'. Muat ulang halaman setelah perbaikan.';
+  var ownerBox=document.getElementById('ownerCloudLoginError');
+  if(ownerBox) ownerBox.textContent='Modul utama aplikasi gagal dimuat. Detail: '+(error&&error.message?error.message:String(error));
+});
+</script><script type="module" src="js/device-pairing.js?v=demo-cleanup-4"></script><script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js",{scope:"./"}).catch(function(err){console.warn("Pendaftaran aplikasi:",err);});});}</script></body></html>
